@@ -1,0 +1,20 @@
+env:
+  numEnvs: 1
+  numStates: 3102
+  sim_device: "cuda:0"
+  compute_device_id: 0
+  graphics_device_id: 0
+  arm_dof: 6
+  actionScale: 1.0
+  PCDownSampleNum: 896
+  TDownSampleNum: 64
+  AllDownSampleNum: 1024
+  obs_type: ["pointcloud","tactile"]  #pointcloud #oracle
+  aggregateMode: 1
+  seed: 42
+  
+  debug: True # if debug, num_envs will be set to numDebugEnvs
+  numDebugEnvs: 2
+  Pointcloud_Visualize: True
+  Camera_Visualize: False
+  debug_camera_type: "camera" #"camera" or "sensor"
