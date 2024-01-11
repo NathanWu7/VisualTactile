@@ -515,6 +515,8 @@ class Ur5pickup(BaseTask):
         self._refresh()
         obs = ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos", "cube_pos", "cube_quat"]
         states = ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos", "cube_pos", "cube_quat", "all_pc"]
+        #prioperception ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos"]
+        student = ["q","eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos","all_pc"]
         self.obs_buf = torch.cat([self.states[ob] for ob in obs], dim=-1)
         self.states_buf = torch.cat([self.states[state] for state in states], dim=-1)
 
@@ -530,13 +532,13 @@ class Ur5pickup(BaseTask):
         #sampled_goal_state = self._random_goal_state(self.init_goal_pos)
         sampled_goal_state = self.init_goal_pos
        
-        self._dof_state = torch.zeros_like(self._dof_state, device=self.device)
-        self._dof_state[:,:,0] = self.default_dof_pos
+        dof_state_reset = torch.zeros_like(self._dof_state, device=self.device)
+        dof_state_reset[:,:,0] = self.default_dof_pos
         self._pos_control  = self.default_dof_pos
         self._q = self._dof_state[..., 0]
 
         self.gym.set_dof_state_tensor_indexed(self.sim,
-                                               gymtorch.unwrap_tensor(self._dof_state),
+                                               gymtorch.unwrap_tensor(dof_state_reset),
                                                gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
         
 
