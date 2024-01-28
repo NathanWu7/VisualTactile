@@ -5,11 +5,20 @@ clip_observations: 5.0
 clip_actions: 1.0
 model_dir: 
 
+proprioception_shape: 20
+encoded_observation_shape: 52
+env_shape: 10
+latent_shape: 32
 
 policy: # only works for MlpPolicy right now
   pi_hid_sizes: [1024, 1024, 512]
   vf_hid_sizes: [1024, 1024, 512]
   activation: elu # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
+
+env_encoder:
+  e_hid_sizes: [1024,512,256]
+  e_activation: elu
+  
 learn:
   test: False
   resume: 0

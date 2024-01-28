@@ -363,7 +363,7 @@ class Ur5pickup(BaseTask):
                 # sensor_camera
 
                 sensor_handle_1 = self.gym.create_camera_sensor(env_ptr, self.sensors_camera_props)
-                right_sensor_handle = self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "right_gelsight_mini")
+                right_sensor_handle = self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "right_box")
                 camera_offset1 = gymapi.Vec3(0.0, -0.00, 0.00)
                 camera_rotation1 = gymapi.Quat.from_axis_angle(gymapi.Vec3(0.0, 0.0, 1.0), np.deg2rad(-90))
                 actor_handle1 = self.gym.get_actor_handle(env_ptr, 0)
@@ -377,7 +377,7 @@ class Ur5pickup(BaseTask):
 
                 # 创建相机 handle sensor_camera
                 sensor_handle_2 = self.gym.create_camera_sensor(env_ptr, self.sensors_camera_props)
-                left_sensor_handle = self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "left_gelsight_mini")
+                left_sensor_handle = self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "left_box")
                 camera_offset2 = gymapi.Vec3(0.0, -0.00, 0.00)
                 camera_rotation2 = gymapi.Quat.from_axis_angle(gymapi.Vec3(0.0, 0.0, 1.0), np.deg2rad(-90))
                 actor_handle2 = self.gym.get_actor_handle(env_ptr, 0)
@@ -515,8 +515,8 @@ class Ur5pickup(BaseTask):
         self._refresh()
         obs = ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos", "cube_pos", "cube_quat"]
         states = ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos", "cube_pos", "cube_quat", "all_pc"]
-        #prioperception ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos"]
-        student = ["q","eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos","all_pc"]
+        #prioperception = ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos"] #porp
+        #student = ["q","eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos","all_pc"]
         self.obs_buf = torch.cat([self.states[ob] for ob in obs], dim=-1)
         self.states_buf = torch.cat([self.states[state] for state in states], dim=-1)
 
@@ -540,7 +540,6 @@ class Ur5pickup(BaseTask):
         self.gym.set_dof_state_tensor_indexed(self.sim,
                                                gymtorch.unwrap_tensor(dof_state_reset),
                                                gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
-        
 
         self._root_state[env_ids, self._cubeA_id, :] = sampled_cube_state[env_ids,:]  #TODO:debug
  
@@ -745,12 +744,9 @@ class Ur5pickup(BaseTask):
         u_delta = control_ik(self._j_eef, actions[:,:6].unsqueeze(-1), self.num_envs, num_dofs=self.num_dof)
         u_delta = actuate(self.actuator_joints, self.mimic_joints, self.arm_dof, u_delta, actions[:,self.arm_dof:])
         
-        
         check = (u_delta + dof_pos).clone()
         u_offset = position_check(self.actuator_joints, self.mimic_joints, self.arm_dof, check)
         
-        #print(u_offset)
-
         self._pos_control = (u_delta + dof_pos + u_offset)
         
         self._pos_control = torch.clamp(self._pos_control, min=self.all_limits[0],max=self.all_limits[1])

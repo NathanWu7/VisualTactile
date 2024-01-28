@@ -23,7 +23,7 @@ class ActorCritic(nn.Module):
 
         # Policy
         actor_layers = []
-        actor_layers.append(nn.Linear(*obs_shape, actor_hidden_dim[0]))
+        actor_layers.append(nn.Linear(obs_shape, actor_hidden_dim[0]))
         actor_layers.append(activation)
         for l in range(len(actor_hidden_dim)):
             if l == len(actor_hidden_dim) - 1:
@@ -38,7 +38,7 @@ class ActorCritic(nn.Module):
         if self.asymmetric:
             critic_layers.append(nn.Linear(*states_shape, critic_hidden_dim[0]))
         else:
-            critic_layers.append(nn.Linear(*obs_shape, critic_hidden_dim[0]))
+            critic_layers.append(nn.Linear(obs_shape, critic_hidden_dim[0]))
         critic_layers.append(activation)
         for l in range(len(critic_hidden_dim)):
             if l == len(critic_hidden_dim) - 1:
@@ -106,7 +106,33 @@ class ActorCritic(nn.Module):
 
         return actions_log_prob, entropy, value, actions_mean, self.log_std.repeat(actions_mean.shape[0], 1)
 
+class EnvEncoder(nn.Module):
+    def __init__(self, env_shape,latent_shape, model_cfg):
+        super(EnvEncoder,self).__init__()
+        if model_cfg is None:
+            encoder_hidden_dim = [256, 256, 256]
+            activation = get_activation("lrelu")
+        else:
+            encoder_hidden_dim = model_cfg['e_hid_sizes']
+            activation = get_activation(model_cfg['e_activation'])
 
+        # Policy
+        encoder_layers = []
+        encoder_layers.append(nn.Linear(env_shape, encoder_hidden_dim[0]))
+        encoder_layers.append(activation)
+        for l in range(len(encoder_hidden_dim)):
+            if l == len(encoder_hidden_dim) - 1:
+                encoder_layers.append(nn.Linear(encoder_hidden_dim[l], latent_shape))
+            else:
+                encoder_layers.append(nn.Linear(encoder_hidden_dim[l], encoder_hidden_dim[l + 1]))
+                encoder_layers.append(activation)
+        print(encoder_layers)
+        self.env_encoder = nn.Sequential(*encoder_layers)   
+    
+    def forward(self, env_inform):
+        latent = self.env_encoder(env_inform)
+        return latent
+        
 def get_activation(act_name):
     if act_name == "elu":
         return nn.ELU()

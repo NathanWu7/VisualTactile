@@ -21,6 +21,7 @@ class TEST:
                 actions = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
                 
                 #(x,y,z,rx,ry,rz,gripper)
+                #print("q",current_obs[:,0:7])
 
                 # print("lf_x",current_obs[:,14])
                 # print("lf_y",current_obs[:,15])
@@ -53,6 +54,7 @@ class TEST:
 
                 # Step the vec_environment
                 next_obs, rews, dones, infos = self.vec_env.step(actions)
+                print(rews.mean())
                 counter[dones==1] = 0
                 #print(next_obs[:,])
 

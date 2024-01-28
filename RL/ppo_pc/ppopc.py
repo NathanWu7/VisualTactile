@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from RL.ppo_pc import RolloutStorage
 from RL.ppo_pc import ActorCritic
-from PCmodule.model import PointVAE
+from RL.ppo_pc import EnvEncoder
 
 import copy
 
@@ -38,7 +38,7 @@ class PPOPC:
             raise TypeError("vec_env.state_space must be a gym Space")
         if not isinstance(vec_env.action_space, Space):
             raise TypeError("vec_env.action_space must be a gym Space")
-        self.observation_space = vec_env.observation_space
+        
         self.action_space = vec_env.action_space
         self.state_space = vec_env.state_space
         self.cfg_train = copy.deepcopy(cfg_train)
@@ -53,15 +53,27 @@ class PPOPC:
         self.num_transitions_per_env=learn_cfg["nsteps"]
         self.learning_rate=learn_cfg["optim_stepsize"]
 
+        self.env_encoder_cfg = self.cfg_train["env_encoder"]
+        
+        self.env_shape = self.cfg_train["env_shape"]
+        self.observation_space = self.env_shape
+        self.latent_shape = self.cfg_train["latent_shape"]
+        self.prop_shape = self.cfg_train["proprioception_shape"]
+        self.total_shape = self.latent_shape + self.prop_shape 
         # PPO components
         self.vec_env = vec_env
-        self.actor_critic = ActorCritic(self.observation_space.shape, self.state_space.shape, self.action_space.shape,
+        self.actor_critic = ActorCritic(self.total_shape, self.state_space.shape, self.action_space.shape,
                                                self.init_noise_std, self.model_cfg, asymmetric=asymmetric)
         self.actor_critic.to(self.device)
-        self.storage = RolloutStorage(self.vec_env.num_envs, self.num_transitions_per_env, self.observation_space.shape,
-                                      self.state_space.shape, self.action_space.shape, self.device, sampler)
-        self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=self.learning_rate)
 
+        self.env_encoder = EnvEncoder(self.env_shape, self.latent_shape, self.env_encoder_cfg)
+        self.env_encoder.to(self.device)
+
+        self.storage = RolloutStorage(self.vec_env.num_envs, self.num_transitions_per_env, self.total_shape,
+                                      self.state_space.shape, self.action_space.shape, self.device, sampler)
+        
+        self.optimizerAC = optim.Adam(self.actor_critic.parameters(), lr = self.learning_rate)
+        self.optimizerEE = optim.Adam(self.env_encoder.parameters(), lr = self.learning_rate)
         # PPO parameters
         self.clip_param = learn_cfg["cliprange"]
         self.num_learning_epochs = learn_cfg["noptepochs"]
@@ -97,6 +109,14 @@ class PPOPC:
     def save(self, path):
         torch.save(self.actor_critic.state_dict(), path)
 
+    def encode_obs(self, current_obs):
+        #print(current_obs[:,self.prop_shape:].size())
+
+        encoded_env = self.env_encoder(current_obs[:,self.prop_shape:])
+
+        encoded_obs = torch.cat((current_obs[:,0:self.prop_shape],encoded_env),dim=1)
+        return encoded_obs
+        
     def run(self, num_learning_iterations, log_interval=1):
         current_obs = self.vec_env.reset()
         current_states = self.vec_env.get_state()
@@ -129,17 +149,15 @@ class PPOPC:
                     if self.apply_reset:
                         current_obs = self.vec_env.reset()
                         current_states = self.vec_env.get_state()
-                    # Compute the action
 
-                    actions, actions_log_prob, values, mu, sigma = self.actor_critic.act(current_obs, current_states)
+                    encoded_obs = self.encode_obs(current_obs)
+                    # Compute the action
+                    actions, actions_log_prob, values, mu, sigma = self.actor_critic.act(encoded_obs, current_states)
                     # Step the vec_environment
                     next_obs, rews, dones, infos = self.vec_env.step(actions)
                     next_states = self.vec_env.get_state()
-                    #pc = next_states[:,next_obs.size(1):].view(4,1024,3).permute(0,2,1)
-                    #Batch channel points
-                    #print(pc.size())
                     # Record the transition
-                    self.storage.add_transitions(current_obs, current_states, actions, rews, dones, values, actions_log_prob, mu, sigma)
+                    self.storage.add_transitions(encoded_obs, current_states, actions, rews, dones, values, actions_log_prob, mu, sigma)
                     current_obs.copy_(next_obs)
                     current_states.copy_(next_states)
                     # Book keeping
@@ -161,7 +179,7 @@ class PPOPC:
                     rewbuffer.extend(reward_sum)
                     lenbuffer.extend(episode_length)
 
-                _, _, last_values, _, _ = self.actor_critic.act(current_obs, current_states)
+                _, _, last_values, _, _ = self.actor_critic.act(encoded_obs, current_states)
                 stop = time.time()
                 collection_time = stop - start
 
@@ -251,6 +269,7 @@ class PPOPC:
 
         batch = self.storage.mini_batch_generator(self.num_mini_batches)
         for epoch in range(self.num_learning_epochs):
+            torch.autograd.set_detect_anomaly(True)
             # for obs_batch, actions_batch, target_values_batch, advantages_batch, returns_batch, old_actions_log_prob_batch \
             #        in self.storage.mini_batch_generator(self.num_mini_batches):
 
@@ -267,6 +286,7 @@ class PPOPC:
                 advantages_batch = self.storage.advantages.view(-1, 1)[indices]
                 old_mu_batch = self.storage.mu.view(-1, self.storage.actions.size(-1))[indices]
                 old_sigma_batch = self.storage.sigma.view(-1, self.storage.actions.size(-1))[indices]
+                print(obs_batch.size())
 
                 actions_log_prob_batch, entropy_batch, value_batch, mu_batch, sigma_batch = self.actor_critic.evaluate(obs_batch,
                                                                                                                        states_batch,
@@ -284,7 +304,7 @@ class PPOPC:
                     elif kl_mean < self.desired_kl / 2.0 and kl_mean > 0.0:
                         self.step_size = min(1e-2, self.step_size * 1.5)
 
-                    for param_group in self.optimizer.param_groups:
+                    for param_group in self.optimizerAC.param_groups:
                         param_group['lr'] = self.step_size
 
                 # Surrogate loss
@@ -305,12 +325,18 @@ class PPOPC:
                     value_loss = (returns_batch - value_batch).pow(2).mean()
 
                 loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean()
+                loss_e = loss.clone()
 
+                self.optimizerEE.zero_grad()
+                loss_e.backward(retain_graph=True)
+                self.optimizerEE.step()
                 # Gradient step
-                self.optimizer.zero_grad()
+                self.optimizerAC.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
-                self.optimizer.step()
+                self.optimizerAC.step()
+
+
 
                 mean_value_loss += value_loss.item()
                 mean_surrogate_loss += surrogate_loss.item()

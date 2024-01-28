@@ -1,0 +1,24 @@
+seed: -1
+torch_deterministic: True
+
+proprioception_shape: 20
+encoded_observation_shape: 52
+env_shape: 10
+latent_shape: 32
+
+mini_batch_size: 2
+
+encoder_model_path: "/home/nathan/VTA/VTAfford/run/encoder_model_0.pt"
+
+env_encoder:
+  e_hid_sizes: [1024,512,256]
+  e_activation: elu
+  
+learn:
+  test: False
+  resume: 0
+  save_interval: 1000 # check for potential saves every this many iterations
+  print_log: True
+
+  # rollout params
+  max_iterations: 6500

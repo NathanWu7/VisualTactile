@@ -106,7 +106,34 @@ class ActorCritic(nn.Module):
 
         return actions_log_prob, entropy, value, actions_mean, self.log_std.repeat(actions_mean.shape[0], 1)
 
+class EnvEncoder(nn.Module):
+    def __init__(self, env_shape,latent_shape, model_cfg):
+        super(EnvEncoder,self).__init__()
+        if model_cfg is None:
+            encoder_hidden_dim = [256, 256, 256]
+            activation = get_activation("lrelu")
+        else:
+            encoder_hidden_dim = model_cfg['e_hid_sizes']
+            activation = get_activation(model_cfg['e_activation'])
 
+        # Policy
+        encoder_layers = []
+        encoder_layers.append(nn.Linear(env_shape, encoder_hidden_dim[0]))
+        encoder_layers.append(activation)
+        for l in range(len(encoder_hidden_dim)):
+            if l == len(encoder_hidden_dim) - 1:
+                encoder_layers.append(nn.Linear(encoder_hidden_dim[l], latent_shape))
+            else:
+                encoder_layers.append(nn.Linear(encoder_hidden_dim[l], encoder_hidden_dim[l + 1]))
+                encoder_layers.append(activation)
+
+        self.env_encoder = nn.Sequential(*encoder_layers)   
+        print(self.env_encoder)
+    
+    def forward(self, env_inform):
+        latent = self.env_encoder(env_inform)
+        return latent
+        
 def get_activation(act_name):
     if act_name == "elu":
         return nn.ELU()

@@ -5,7 +5,7 @@ from utils.runner import Runner
 def train():
     print("Algorithm: ", args.algo)
 
-    if args.algo in ["ppo", "sac", "td3", "trpo","test","ppopc"]: 
+    if args.algo in ["ppo", "sac", "td3", "trpo","test","ppopc","pcsampling"]: 
         task = parse_task(args, env_cfg, train_cfg, sim_params)
         runner = Runner(task, train_cfg)
 

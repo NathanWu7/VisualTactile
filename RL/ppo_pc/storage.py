@@ -10,7 +10,7 @@ class RolloutStorage:
         self.sampler = sampler
 
         # Core
-        self.observations = torch.zeros(num_transitions_per_env, num_envs, *obs_shape, device=self.device)
+        self.observations = torch.zeros(num_transitions_per_env, num_envs, obs_shape, device=self.device)
         self.states = torch.zeros(num_transitions_per_env, num_envs, *states_shape, device=self.device)
         self.rewards = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
         self.actions = torch.zeros(num_transitions_per_env, num_envs, *actions_shape, device=self.device)
