@@ -3,6 +3,7 @@ import os
 import sys
 
 import matplotlib.pyplot as plt
+import numpy as np
 from isaacgym import gymapi, gymtorch
 from isaacgym.torch_utils import *
 from PIL import Image as Im
@@ -219,9 +220,14 @@ class Ur5pickup(BaseTask):
         sensor_pose1 = gymapi.Transform(gymapi.Vec3(0.0, 0.0, 0.02))
         sensor_pose2 = gymapi.Transform(gymapi.Vec3(-0.0, 0.0, 0.02))
 
-        sensor_idx1 = self.gym.create_asset_force_sensor(ur5_assert, right_sensor_idx, sensor_pose1)
-        sensor_idx2 = self.gym.create_asset_force_sensor(ur5_assert, left_sensor_idx, sensor_pose2)
-        
+        sensor_options = gymapi.ForceSensorProperties()
+        sensor_options.enable_forward_dynamics_forces = False  # for example gravity
+        sensor_options.enable_constraint_solver_forces = True  # for example contacts
+        sensor_options.use_world_frame = False  # report forces in world frame (easier to get vertical components)
+
+        sensor_idx1 = self.gym.create_asset_force_sensor(ur5_assert, right_sensor_idx, sensor_pose1, sensor_options)
+        sensor_idx2 = self.gym.create_asset_force_sensor(ur5_assert, left_sensor_idx, sensor_pose2, sensor_options)
+        self.net_contact_force_tensor = self.gym.acquire_net_contact_force_tensor(self.sim)
         
         # define ur5reach dof properties
         dof_props = self.gym.get_asset_dof_properties(ur5_assert)
@@ -365,7 +371,7 @@ class Ur5pickup(BaseTask):
                 sensor_handle_1 = self.gym.create_camera_sensor(env_ptr, self.sensors_camera_props)
                 right_sensor_handle = self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "right_box")
                 camera_offset1 = gymapi.Vec3(0.0, -0.00, 0.00)
-                camera_rotation1 = gymapi.Quat.from_axis_angle(gymapi.Vec3(0.0, 0.0, 1.0), np.deg2rad(-90))
+                camera_rotation1 = gymapi.Quat.from_axis_angle(gymapi.Vec3(0.0, 1.0, 0.0), np.deg2rad(-90))
                 actor_handle1 = self.gym.get_actor_handle(env_ptr, 0)
 
                 body_handle1 = self.gym.get_actor_rigid_body_handle(env_ptr, actor_handle1, right_sensor_handle)  # right sensor
@@ -379,7 +385,7 @@ class Ur5pickup(BaseTask):
                 sensor_handle_2 = self.gym.create_camera_sensor(env_ptr, self.sensors_camera_props)
                 left_sensor_handle = self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "left_box")
                 camera_offset2 = gymapi.Vec3(0.0, -0.00, 0.00)
-                camera_rotation2 = gymapi.Quat.from_axis_angle(gymapi.Vec3(0.0, 0.0, 1.0), np.deg2rad(-90))
+                camera_rotation2 = gymapi.Quat.from_axis_angle(gymapi.Vec3(0.0, 1.0, 0.0), np.deg2rad(-90))
                 actor_handle2 = self.gym.get_actor_handle(env_ptr, 0)
 
                 body_handle2 = self.gym.get_actor_rigid_body_handle(env_ptr, actor_handle2, left_sensor_handle)  # left sensor
@@ -495,7 +501,7 @@ class Ur5pickup(BaseTask):
         self.gym.refresh_rigid_body_state_tensor(self.sim)
         self.gym.refresh_jacobian_tensors(self.sim)
         self.gym.refresh_mass_matrix_tensors(self.sim)
-        #self.gym.refresh_net_contact_force_tensor(self.sim)
+        self.gym.refresh_net_contact_force_tensor(self.sim)
         self.gym.refresh_force_sensor_tensor(self.sim)
 
         if "pointcloud" in self.obs_type or "tactile" in self.obs_type:
@@ -584,6 +590,15 @@ class Ur5pickup(BaseTask):
                 point_clouds[i] = selected_points #centorids
 
             if  "tactile" in self.obs_type:
+                contact_forces = []
+                # 获取接触力张量
+                net_contact_force = gymtorch.wrap_tensor(self.net_contact_force_tensor).view(self.num_envs, 25, 3)
+                # 计算总接触力
+                left_contact_force = net_contact_force[:, 13, :].cpu().numpy()
+                right_contact_force = net_contact_force[:, 21, :].cpu().numpy()
+                contact_forces.append(left_contact_force)
+                contact_forces.append(right_contact_force)
+
                 for index in range(2):
                     real_index = 2*i + index
 
@@ -592,13 +607,17 @@ class Ur5pickup(BaseTask):
                     else:
                         cam_vinv = torch.inverse(
                             (torch.tensor(self.gym.get_camera_view_matrix(self.sim, self.envs[i], self.sensors[real_index])))).to(self.device)
+
+                    contact_force = np.dot(cam_vinv.cpu().numpy()[:3, :3], left_contact_force.reshape(3, 1))[2]
+                    contact_force_tensor = torch.tensor(1).to(self.device)
+
                     cam_proj = torch.tensor(self.gym.get_camera_proj_matrix(self.sim, self.envs[i], self.sensors[real_index]),
                                             device=self.device)
 
                     camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, self.envs[i],
                                                                         self.sensors[real_index], gymapi.IMAGE_DEPTH)
                     torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor)
-                    torch_cam_tensor = self.transforms_depth(torch_cam_tensor)
+                    torch_cam_tensor = self.transforms_depth(torch_cam_tensor) * contact_force_tensor
 
                     points = sensor_depth_image_to_point_cloud_GPU(torch_cam_tensor, cam_vinv,
                                                     cam_proj, self.sensor_u2, self.sensor_v2,
@@ -608,6 +627,14 @@ class Ur5pickup(BaseTask):
                         # 存储points pair
                         start_index = index * self.sensor_downsample_num
                         sensors_point_clouds[i, start_index:start_index + self.sensor_downsample_num, :] = points
+
+                # left_contact_force_cam_frame = np.dot(cam_vinvs[0], left_contact_force.reshape(3, 1))
+                # right_contact_force_cam_frame = np.dot(cam_vinvs[1], right_contact_force.reshape(3, 1))
+                # # last_block_force = net_contact_force[:, 24, :].cpu().numpy()
+                #
+                # print("left force", left_contact_force, left_contact_force_cam_frame.T)
+                # print("right force", right_contact_force, right_contact_force_cam_frame.T)
+                # print("last force", last_block_force)
             #print(point_clouds.size())
        #compute_tactile
        
@@ -618,7 +645,6 @@ class Ur5pickup(BaseTask):
                 plt.imshow(camera_rgba_image)
                 plt.pause(1e-9)
                 plt.cla()
-            
 
             elif self.debug_view_type == "sensor" and "tactile" in self.obs_type:
                 self.camera_window = plt.figure("SENSOR_DEBUG")
@@ -633,7 +659,6 @@ class Ur5pickup(BaseTask):
             import open3d as o3d
             #test_points = point_clouds[0, :, :3].cpu().numpy()
             points = np.concatenate(( point_clouds[0, :, :3].cpu().numpy() , sensors_point_clouds[0, :, :3].cpu().numpy()) , axis=0)
-            
             
             #colors = plt.get_cmap(points)
             self.o3d_pc.points = o3d.utility.Vector3dVector(points)
@@ -740,8 +765,10 @@ class Ur5pickup(BaseTask):
         dof_pos = dof_states[:,:,0]
         #check = dof_pos.clone()
 
-        
-        u_delta = control_ik(self._j_eef, actions[:,:6].unsqueeze(-1), self.num_envs, num_dofs=self.num_dof)
+        num_envs_tensor = torch.tensor(self.num_envs)
+        num_dof_tensor = torch.tensor(self.num_dof)
+        u_delta = control_ik(self._j_eef, actions[:,:6].unsqueeze(-1), num_envs_tensor, num_dofs=num_dof_tensor)
+        # u_delta = control_ik(self._j_eef, actions[:,:6].unsqueeze(-1), self.num_envs, num_dofs=self.num_dof)
         u_delta = actuate(self.actuator_joints, self.mimic_joints, self.arm_dof, u_delta, actions[:,self.arm_dof:])
         
         check = (u_delta + dof_pos).clone()
@@ -789,7 +816,7 @@ class Ur5pickup(BaseTask):
 
 # define reward function using JIT
 @torch.jit.script
-def control_ik(j_eef, dpose, num_envs, num_dofs, damping=0.05):
+def control_ik(j_eef, dpose, num_envs, num_dofs, damping:float=0.05):
     """Solve damped least squares, from `franka_cube_ik_osc.py` in Isaac Gym.
 
     Returns: Change in DOF positions, [num_envs,num_dofs], to add to current positions.
@@ -798,6 +825,15 @@ def control_ik(j_eef, dpose, num_envs, num_dofs, damping=0.05):
     lmbda = torch.eye(6).to(j_eef_T.device) * (damping ** 2)
     u = (j_eef_T @ torch.inverse(j_eef @ j_eef_T + lmbda) @ dpose).view(num_envs, num_dofs)
     return u
+# def control_ik(j_eef, dpose, num_envs, num_dofs, damping=0.05):
+#     """Solve damped least squares, from `franka_cube_ik_osc.py` in Isaac Gym.
+#
+#     Returns: Change in DOF positions, [num_envs,num_dofs], to add to current positions.
+#     """
+#     j_eef_T = torch.transpose(j_eef, 1, 2)
+#     lmbda = torch.eye(6).to(j_eef_T.device) * (damping ** 2)
+#     u = (j_eef_T @ torch.inverse(j_eef @ j_eef_T + lmbda) @ dpose).view(num_envs, num_dofs)
+#     return u
 
 @torch.jit.script
 def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
@@ -905,7 +941,7 @@ def sensor_depth_image_to_point_cloud_GPU(camera_tensor, camera_view_matrix_inv,
 
     Z = Z.view(-1)
 
-    valid = ((-(0.022) > Z) & (Z > -(0.028)))
+    valid = ((-(0.005) > Z) & (Z > -(0.018)))   # 0.028
     # valid = (Z > -0.1)
 
     X = X.view(-1)

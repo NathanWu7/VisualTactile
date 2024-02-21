@@ -7,7 +7,7 @@ from RL.sac.sac import SAC
 from RL.td3.td3 import TD3
 from RL.trpo.trpo import TRPO
 from RL.test.test import TEST
-from RL.pc_sampling.Adapter4D import PCSampling
+# from RL.pc_sampling.Adapter4D import PCSampling
 
 def parse_task(args, env_cfg, train_cfg, sim_params):
     device_id = args.device_id
