@@ -1,16 +1,16 @@
 seed: -1
 torch_deterministic: True
 
-origin_shape: 28 #env origin
+origin_shape: 31 #env origin
 proprioception_shape: 21  #proprio 
 encoded_observation_shape: 37 # encoded = proprio + latent
 latent_shape: 16
 PCDownSampleNum: 8192
 TDownSampleNum: 64
 
-student_model_path: "/home/nathan/VisualTactile/run/pickup_student/student_model.pt"
-rl_model_path: "/home/nathan/VisualTactile/run/pickup/sac_model_2000.pt"
-adapter_model_path: "/home/nathan/VisualTactile/run/pickup_TAN/TAN_model.pt"
+student_model_path: "/home/nathan/VisualTactile/run/pickandplace_student/student_model.pt"
+rl_model_path: "/home/nathan/VisualTactile/run/pickandplace/sac_model_4400.pt"
+adapter_model_path: "/home/nathan/VisualTactile/run/pickandplace_TAN/TAN_model.pt"
 
 policy: # only works for MlpPolicy right now
   # training params

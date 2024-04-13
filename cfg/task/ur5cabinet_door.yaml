@@ -1,0 +1,26 @@
+env:
+  numEnvs: 512
+  numStates: 25 #
+  sim_device: "cuda:0"
+  compute_device_id: 0
+  graphics_device_id: 0
+  arm_dof: 6
+  actionScale: 1.0
+  PCDownSampleNum: 8192
+  TDownSampleNum: 64
+  AllDownSampleNum: 8324
+  obs_type: ["oracle","contact_force"]    #["oracle","contact_force","pointcloud","tactile"]  
+  aggregateMode: 1
+  seed: 42
+
+  full_dof: 7
+  dof_config: "XYZRxRYRz"
+  controlFrequencyInv: 1
+
+  debug: False # if debug, num_envs will be set to numDebugEnvs
+  numDebugEnvs: 16
+  Pointcloud_Visualize: True
+  Camera_Visualize: False
+  debug_camera_type: "camera" #"camera" or "sensor"
+  
+

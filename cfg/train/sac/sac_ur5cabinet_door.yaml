@@ -1,0 +1,42 @@
+seed: -1
+
+clip_observations: 5.0
+clip_actions: 1.0
+
+env_shape: 4
+proprioception_shape: 21
+rl_model_path: "/home/nathan/VisualTactile/run/cabinet_door/sac_model_5600.pt"
+
+learn:
+  test: False
+  resume: 0
+  save_interval: 400 # check for potential saves every this many iterations
+  print_log: True
+
+  # rollout params
+  max_iterations: 10000
+
+  # training params
+  hidden_nodes: 512
+  hidden_layer: 3
+
+  cliprange: 0.2
+  nsteps: 8
+  noptepochs: 1
+  nminibatches: 4 # this is per agent
+  replay_size: 2000
+  polyak: 0.99
+  learning_rate: 0.001
+  max_grad_norm: 1
+  ent_coef: 0.2
+  reward_scale: 1
+  batch_size: 32
+#  optim_stepsize: 1.e-3 # 3e-4 is default for single agent training with constant schedule
+#  schedule: adaptive # could be adaptive or linear or fixed
+#  desired_kl: 0.016
+  gamma: 0.98
+#  lam: 0.95
+#  init_noise_std: 0.8
+
+  log_interval: 1
+  asymmetric: False

@@ -8,9 +8,9 @@ latent_shape: 16
 PCDownSampleNum: 8192
 
 
-student_model_path: "/home/nathan/VisualTactile/run/student_model.pt"
-rl_model_path: "/home/nathan/VisualTactile/run/sac_model_10000.pt"
-TAN_model_path: "/home/nathan/VisualTactile/run/TAN_model.pt"
+student_model_path: "/home/nathan/VisualTactile/run/pickup_student/student_model.pt"
+rl_model_path: "/home/nathan/VisualTactile/run/pickup/sac_model_2000.pt"
+adapter_model_path: "/home/nathan/VisualTactile/run/pickup_TAN/TAN_model.pt"
 
 policy: # only works for MlpPolicy right now
   hidden_nodes: 512

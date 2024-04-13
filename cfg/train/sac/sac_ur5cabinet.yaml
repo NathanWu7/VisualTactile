@@ -3,9 +3,9 @@ seed: -1
 clip_observations: 5.0
 clip_actions: 1.0
 
-env_shape: 10
+env_shape: 4
 proprioception_shape: 21
-rl_model_path: "/home/nathan/VisualTactile/run/sac_model_2000.pt"
+rl_model_path: "/home/nathan/VisualTactile/run/cabinet_draw/sac_model_800.pt"
 
 learn:
   test: False

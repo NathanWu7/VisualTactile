@@ -1,16 +1,16 @@
 seed: -1
 torch_deterministic: True
 
-origin_shape: 28 #env origin
+origin_shape: 25 #env origin
 proprioception_shape: 21  #proprio 
 encoded_observation_shape: 37 # encoded = proprio + latent
 latent_shape: 16
 PCDownSampleNum: 8192
 
 
-student_model_path: "/home/nathan/VisualTactile/run/student_model.pt"
-rl_model_path: "/home/nathan/VisualTactile/run/sac_model_10000.pt"
-TAN_model_path: "/home/nathan/VisualTactile/run/TAN_model.pt"
+student_model_path: "/home/nathan/VisualTactile/run/cabinet_draw_student/student_model.pt"
+rl_model_path: "/home/nathan/VisualTactile/run/cabinet_draw/sac_model_800.pt"
+adapter_model_path: "/home/nathan/VisualTactile/run/cabinet_draw_TAN/TAN_model.pt"
 
 policy: # only works for MlpPolicy right now
   hidden_nodes: 512

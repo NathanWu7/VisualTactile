@@ -1,6 +1,6 @@
 env:
-  numEnvs: 2
-  numStates: 28 #
+  numEnvs: 512
+  numStates: 25 #
   sim_device: "cuda:0"
   compute_device_id: 0
   graphics_device_id: 0

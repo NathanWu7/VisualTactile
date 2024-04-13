@@ -60,7 +60,7 @@ class Ur5cabinet(BaseTask):
         self.transforms_depth = transforms.CenterCrop((240,320))
         print(self.obs_type)
         if "oracle" in self.obs_type:    
-            self.num_obs = 28  # 20 + 7
+            self.num_obs = 25  # 20 + 7
             
         #     self.num_obs = 30+1024*3
         if "pointcloud" or "tactile" in self.obs_type:
@@ -77,7 +77,7 @@ class Ur5cabinet(BaseTask):
         else:
             plt.ion()
 
-        self.num_obs = 28
+        self.num_obs = 25
         if self.dof_config == "XYZRxRYRz":
             self.num_act = 7  # force applied on the pole (-1 to 1)
         elif self.dof_config == "XYZRz":
@@ -442,7 +442,7 @@ class Ur5cabinet(BaseTask):
 
         # Setup tensor buffers
         _actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)  #including objs
-
+        self.init_cabinet_pos = torch.tensor([1.10, 0.4, 0.83+0.4],device = self.device)
 
         _dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)      #only dof
         _rigid_body_state_tensor = self.gym.acquire_rigid_body_state_tensor(self.sim)  #arm_hand
@@ -464,8 +464,8 @@ class Ur5cabinet(BaseTask):
         self._root_state = gymtorch.wrap_tensor(_actor_root_state_tensor).view(self.num_envs, -1, 13)
         self._dof_state = gymtorch.wrap_tensor(_dof_state_tensor).view(self.num_envs, -1, 2)  #pos speed
         self.ur5_dof_state = self._dof_state.view(self.num_envs, -1, 2)[:, :self.num_dof]
-        self._q = self.ur5_dof_state[..., 0]
-        self._v = self.ur5_dof_state[..., 1]
+        self.ur5_dof_pos = self.ur5_dof_state[..., 0]
+        self.ur5_dof_vel = self.ur5_dof_state[..., 1]
         self.cabinet_dof_state = self._dof_state.view(self.num_envs, -1, 2)[:, self.num_dof:]
         self.cabinet_dof_pos = self.cabinet_dof_state[..., 0]
         self.cabinet_dof_vel = self.cabinet_dof_state[..., 1]
@@ -493,22 +493,22 @@ class Ur5cabinet(BaseTask):
 
     def _update_states(self):
         self.states.update({
-            "q": self._q[:, :7],
-            "eef_pos": self._eef_state[:, :3],  #3
-            "eef_quat": self._eef_state[:, 3:7],  #4
-            "eef_lin_vel": self._eef_state[:, 7:10],  #3
-            "eef_ang_vel": self._eef_state[:, 10:13],  #3
+            "ur5_dof_pos": self.ur5_dof_pos[:, :7],
+            "ee_pos": self._eef_state[:, :3],  #3
+            "ee_quat": self._eef_state[:, 3:7],  #4
+            "ee_lin_vel": self._eef_state[:, 7:10],  #3
+            "ee_ang_vel": self._eef_state[:, 10:13],  #3
             "middle_gripper_state": (self._eef_lf_state[:,:3] + self._eef_rf_state[:,:3]) / 2. ,
-            "eef_lf_pos": self._eef_lf_state[:, :3],   #3
+            "ee_lf_pos": self._eef_lf_state[:, :3],   #3
             #"eef_lf_quat": self._eef_lf_state[:, 3:7],   #4
-            "eef_rf_pos": self._eef_rf_state[:, :3], #3
+            "ee_rf_pos": self._eef_rf_state[:, :3], #3
             "goal_pos": self.goal_pos[:, :3],
             #"eef_rf_quat": self._eef_rf_state[:, 3:7],   #
             "last_actions": self.last_actions,  #7
             "all_pc": self.all_pointcloud,
             "touch_rate":self.touch_rate,
             "force": self._contact_forces,
-            "cabinet_dof": self.cabinet_dof_pos
+            "cabinet_dof_pos": self.cabinet_dof_pos[:,2].unsqueeze(1)
         })    
 
 
@@ -537,8 +537,8 @@ class Ur5cabinet(BaseTask):
 
     def compute_observations(self):
         self._refresh() #7 3      #4           #6                          #1            #3           #4
-        obs =    ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "goal_pos", "cabinet_dof"]
-        states = ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "goal_pos", "cabinet_dof"]
+        obs =    ["ur5_dof_pos", "ee_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos"]
+        states = ["ur5_dof_pos", "ee_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos"]
         self.obs_buf = torch.cat([self.states[ob] for ob in obs], dim=-1)
         self.states_buf = torch.cat([self.states[state] for state in states], dim=-1)
         self.pointcloud_buf = self.states["all_pc"]
@@ -547,37 +547,31 @@ class Ur5cabinet(BaseTask):
 
     def reset(self, env_ids):
 
-        multi_env_ids_int32 = self._global_indices[env_ids, 0].flatten()
-       
-        # dof_state_reset = torch.zeros_like(self._dof_state, device=self.device)
-        # dof_state_reset[:,:,0] = self.default_dof_pos
+        multi_ur5_ids_int32 = self._global_indices[env_ids, 0].flatten()
+        multi_cabinet_ids_int32 = self._global_indices[env_ids, 3].flatten()
+        multi_env_ids_int32 = torch.cat((multi_ur5_ids_int32,multi_cabinet_ids_int32),dim=0)
 
-        self._q[env_ids, :] = self.default_dof_pos
-        self._v[env_ids, :] = torch.zeros_like(self._v[env_ids])
-
-        self._pos_control[env_ids, :self.num_dof] = self.default_dof_pos
+        self.ur5_dof_pos[env_ids, :] = self.default_dof_pos                          
+        self.ur5_dof_vel[env_ids, :] = torch.zeros_like(self.ur5_dof_vel[env_ids])  
+        self._pos_control[env_ids, :self.num_dof] = self.default_dof_pos             #dof_state
 
         # reset cabinet
-        self.cabinet_dof_state[env_ids, :] = torch.zeros_like(self.cabinet_dof_state[env_ids])
-        #sampled_cube_state = self._init_cubeA_state
+        self.cabinet_dof_state[env_ids, :] = torch.zeros_like(self.cabinet_dof_state[env_ids])  #dof_state
 
-        self.gym.set_dof_position_target_tensor_indexed(self.sim,
-                                                        gymtorch.unwrap_tensor(self._pos_control),
-                                                        gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
-
+        # self.gym.set_dof_position_target_tensor_indexed(self.sim,
+        #                                                 gymtorch.unwrap_tensor(self._pos_control),
+        #                                                 gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
 
         self.gym.set_dof_state_tensor_indexed(self.sim,
                                                gymtorch.unwrap_tensor(self._dof_state),
                                                gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
-
-
-        # self._root_state[env_ids, 3, :] = self.init_cabinet_pos  #TODO:debug
  
-        # #self.goal_pos = sampled_goal_state
-        # multi_env_ids_cabinet_int32 = self._global_indices[env_ids, -1:].flatten()
+        # # # #self.goal_pos = sampled_goal_state
+
+
         # self.gym.set_actor_root_state_tensor_indexed(
         #     self.sim, gymtorch.unwrap_tensor(self._root_state),
-        #     gymtorch.unwrap_tensor(multi_env_ids_cabinet_int32), len(multi_env_ids_cabinet_int32))
+        #     gymtorch.unwrap_tensor(multi_cabinet_ids_int32), len(multi_cabinet_ids_int32))
 
         #print(self.goal_pos)
         # clear up desired buffer states
@@ -824,8 +818,6 @@ class Ur5cabinet(BaseTask):
         u_offset = position_check(self.actuator_joints, self.mimic_joints, self.arm_dof, check)
         
         self._pos_control[:,:self.num_dof] = (u_delta + arm_dof_pos + u_offset)
-        
-        
         self._pos_control[:,:self.num_dof] = torch.clamp(self._pos_control[:,:self.num_dof], min=self.all_limits[0],max=self.all_limits[1])
         #self._pos_control[:,self.num_dof:] = 0
 
@@ -858,14 +850,26 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     # type: (Tensor, Tensor, Dict[str, Tensor], float) -> Tuple[Tensor, Tensor, Tensor]
     
     #touch_rate = states["touch_rate"].squeeze(1)
-    
-    force = states["force"].squeeze(1)
+    d_lf = torch.norm(states["goal_pos"] - states["ee_lf_pos"], dim=-1)
+    d_rf = torch.norm(states["goal_pos"] - states["ee_rf_pos"], dim=-1)
+    d_ff = torch.norm(states["ee_lf_pos"] - states["ee_rf_pos"], dim=-1)
 
-    rew_buf = torch.ones_like(reset_buf)     
+    d_cabinet = states["cabinet_dof_pos"].squeeze(1)
+
+    force = states["force"].squeeze(1)
+    
+    force[force > 200] = 200
+    ungrasp = force == 0
+    goal = d_cabinet > 0.1
+
+    rew_buf = - 0.4 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * ungrasp \
+                + force * 0.0005 \
+                + d_cabinet \
+                + goal * 100
 
     #reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (rewards > 0.8), torch.ones_like(reset_buf), reset_buf)
-    reset_buf = torch.where((progress_buf >= (max_episode_length - 1)), torch.ones_like(reset_buf), reset_buf)
-    success_buf = reset_buf
+    reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | goal, torch.ones_like(reset_buf), reset_buf)
+    success_buf = goal
 
     return rew_buf, reset_buf, success_buf
 
