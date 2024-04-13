@@ -3,27 +3,30 @@ seed: -1
 clip_observations: 5.0
 clip_actions: 1.0
 
+env_shape: 7
+proprioception_shape: 21
+rl_model_path: "/home/nathan/VisualTactile/run/pickup/sac_model_2000.pt"
 
 learn:
   test: False
   resume: 0
-  save_interval: 1000 # check for potential saves every this many iterations
+  save_interval: 400 # check for potential saves every this many iterations
   print_log: True
 
   # rollout params
-  max_iterations: 6500
+  max_iterations: 5000
 
   # training params
-  hidden_nodes: 1024
+  hidden_nodes: 512
   hidden_layer: 3
 
   cliprange: 0.2
   nsteps: 8
   noptepochs: 1
   nminibatches: 4 # this is per agent
-  replay_size: 5000
+  replay_size: 2000
   polyak: 0.99
-  learning_rate: 0.0003
+  learning_rate: 0.001
   max_grad_norm: 1
   ent_coef: 0.2
   reward_scale: 1

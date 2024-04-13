@@ -10,10 +10,10 @@ class ReplayBuffer:
         self.sampler = sampler
 
         # Core
-        self.observations = torch.zeros(replay_size, num_envs, *obs_shape, device=self.device)
+        self.observations = torch.zeros(replay_size, num_envs, obs_shape, device=self.device)
         self.states = torch.zeros(replay_size, num_envs, *states_shape, device=self.device)
         self.rewards = torch.zeros(replay_size, num_envs, 1, device=self.device)
-        self.next_observations = torch.zeros(replay_size, num_envs, *obs_shape, device=self.device)
+        self.next_observations = torch.zeros(replay_size, num_envs, obs_shape, device=self.device)
         self.actions = torch.zeros(replay_size, num_envs, *actions_shape, device=self.device)
         self.dones = torch.zeros(replay_size, num_envs, 1, device=self.device).byte()
 

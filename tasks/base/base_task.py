@@ -10,6 +10,7 @@ import os
 import operator
 from copy import deepcopy
 import random
+import time
 
 from isaacgym import gymapi
 from isaacgym.gymutil import get_property_setter_map, get_property_getter_map, get_default_setter_args, apply_random_samples, check_buckets, generate_random_samples
@@ -51,9 +52,13 @@ class BaseTask():
         self.num_states = cfg["env"].get("numStates", 0)
 
         self.num_actions = cfg["env"]["numActions"]
+        self.pointcloud_size = cfg["env"]["AllDownSampleNum"]
 
         self.control_freq_inv = cfg["env"].get("controlFrequencyInv", 1)
-
+        self.dof_config = cfg["env"]["dof_config"]
+        self.full_dof = cfg["env"]["full_dof"]
+         
+        self.actions = torch.zeros((self.num_envs, self.full_dof), device = self.device, dtype = torch.float)
         # optimization flags for pytorch JIT
         # torch._C._jit_set_profiling_mode(False)
         # torch._C._jit_set_profiling_executor(False)
@@ -63,6 +68,8 @@ class BaseTask():
             (self.num_envs, self.num_obs), device=self.device, dtype=torch.float)
         self.states_buf = torch.zeros(
             (self.num_envs, self.num_states), device=self.device, dtype=torch.float)
+        self.pointcloud_buf = torch.zeros(
+            (self.num_envs, self.pointcloud_size,3), device=self.device, dtype=torch.float)
         self.rew_buf = torch.zeros(
             self.num_envs, device=self.device, dtype=torch.float)
         self.reset_buf = torch.ones(
@@ -133,11 +140,12 @@ class BaseTask():
         return sim
 
     def step(self, actions):
-        if self.dr_randomizations.get('actions', None):
-            actions = self.dr_randomizations['actions']['noise_lambda'](actions)
+        self.actions_encode(actions,self.dof_config)
+        #if self.dr_randomizations.get('actions', None):
+        #    self.actions = self.dr_randomizations['actions']['noise_lambda'](self.actions)
 
         # apply actions
-        self.pre_physics_step(actions)
+        self.pre_physics_step(self.actions)
 
         # step physics and render each frame
         for i in range(self.control_freq_inv):
@@ -151,11 +159,22 @@ class BaseTask():
         # compute observations, rewards, resets, ...
         self.post_physics_step()
 
+
         if self.dr_randomizations.get('observations', None):
             self.obs_buf = self.dr_randomizations['observations']['noise_lambda'](self.obs_buf)
 
+    def actions_encode(self, actions, dof):
+        if dof == "XYZRxRYRz":
+            self.actions = actions
+        if dof == "XYZRz":
+            self.actions[:,0:3] = actions[:,0:3]
+            self.actions[:,5:7] = actions[:,3:5]
+
     def get_states(self):
         return self.states_buf
+   
+    def get_pointcloud(self):
+        return self.pointcloud_buf
 
     def render(self, sync_frame_time=False):
         if self.viewer:

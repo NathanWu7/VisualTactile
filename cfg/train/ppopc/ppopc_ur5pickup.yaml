@@ -5,28 +5,32 @@ clip_observations: 5.0
 clip_actions: 1.0
 model_dir: 
 
-proprioception_shape: 20
-encoded_observation_shape: 52
-env_shape: 10
-latent_shape: 32
+origin_shape: 37 #env origin
+proprioception_shape: 27  #proprio = q + pos 
+encoded_observation_shape: 35 # encoded = proprio + latent
+env_shape: 14 #env_shape = q + obj
+latent_shape: 8
+
+encoder_model_path: "/home/nathan/VisualTactile/run/encoder_model_2000.pt"
+rl_model_path: "/home/nathan/VisualTactile/run/model_2000.pt"
 
 policy: # only works for MlpPolicy right now
-  pi_hid_sizes: [1024, 1024, 512]
-  vf_hid_sizes: [1024, 1024, 512]
+  pi_hid_sizes: [512, 256, 128]
+  vf_hid_sizes: [512, 256, 128]
   activation: elu # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
 
 env_encoder:
-  e_hid_sizes: [1024,512,256]
+  e_hid_sizes: [256,128]
   e_activation: elu
   
 learn:
   test: False
   resume: 0
-  save_interval: 1000 # check for potential saves every this many iterations
+  save_interval: 400 # check for potential saves every this many iterations
   print_log: True
 
   # rollout params
-  max_iterations: 6500
+  max_iterations: 8000
 
   # training params
   cliprange: 0.2
@@ -42,5 +46,5 @@ learn:
   lam: 0.95
   init_noise_std: 0.8
 
-  log_interval: 1
+  log_interval: 5
   asymmetric: False

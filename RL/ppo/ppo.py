@@ -37,7 +37,8 @@ class PPO:
             raise TypeError("vec_env.state_space must be a gym Space")
         if not isinstance(vec_env.action_space, Space):
             raise TypeError("vec_env.action_space must be a gym Space")
-        self.observation_space = vec_env.observation_space
+        self.observation_space = vec_env.observation_space  #TODO DEBUG
+
         self.action_space = vec_env.action_space
         self.state_space = vec_env.state_space
         self.cfg_train = copy.deepcopy(cfg_train)
@@ -51,13 +52,17 @@ class PPO:
         self.model_cfg = self.cfg_train["policy"]
         self.num_transitions_per_env=learn_cfg["nsteps"]
         self.learning_rate=learn_cfg["optim_stepsize"]
-
+        self.rl_model_path = self.cfg_train["rl_model_path"]
+        self.env_shape = self.cfg_train["env_shape"]
+        self.prop_shape = self.cfg_train["proprioception_shape"]
+        self.total_shape = self.env_shape + self.prop_shape
+        #print(self.total_shape)
         # PPO components
         self.vec_env = vec_env
-        self.actor_critic = ActorCritic(self.observation_space.shape, self.state_space.shape, self.action_space.shape,
-                                               self.init_noise_std, self.model_cfg, asymmetric=asymmetric)
+        self.actor_critic = ActorCritic(self.total_shape, self.state_space.shape, self.action_space.shape,
+                                               self.init_noise_std, self.model_cfg, asymmetric=asymmetric) #TODO debug observation
         self.actor_critic.to(self.device)
-        self.storage = RolloutStorage(self.vec_env.num_envs, self.num_transitions_per_env, self.observation_space.shape,
+        self.storage = RolloutStorage(self.vec_env.num_envs, self.num_transitions_per_env, self.total_shape,
                                       self.state_space.shape, self.action_space.shape, self.device, sampler)
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=self.learning_rate)
 
@@ -79,7 +84,7 @@ class PPO:
         self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
         self.tot_timesteps = 0
         self.tot_time = 0
-        self.is_testing = is_testing
+        self.is_testing = False
         self.current_learning_iteration = 0
 
         self.apply_reset = apply_reset
@@ -101,13 +106,13 @@ class PPO:
         current_states = self.vec_env.get_state()
 
         if self.is_testing:
+            self.test(self.rl_model_path)
             while True:
                 with torch.no_grad():
                     if self.apply_reset:
                         current_obs = self.vec_env.reset()
                     # Compute the action
                     actions = self.actor_critic.act_inference(current_obs)
-                    # Step the vec_environment
                     next_obs, rews, dones, infos = self.vec_env.step(actions)
                     current_obs.copy_(next_obs)
         else:
@@ -128,11 +133,14 @@ class PPO:
                     if self.apply_reset:
                         current_obs = self.vec_env.reset()
                         current_states = self.vec_env.get_state()
+                        
                     # Compute the action
                     actions, actions_log_prob, values, mu, sigma = self.actor_critic.act(current_obs, current_states)
                     # Step the vec_environment
                     next_obs, rews, dones, infos = self.vec_env.step(actions)
                     next_states = self.vec_env.get_state()
+                    # pcs = next_states[:,next_obs.size(1):]#.view(self.vec_env.num_envs,1024,3)
+                    # print(pcs.size())
                     # Record the transition
                     self.storage.add_transitions(current_obs, current_states, actions, rews, dones, values, actions_log_prob, mu, sigma)
                     current_obs.copy_(next_obs)
@@ -172,9 +180,9 @@ class PPO:
                 if self.print_log:
                     self.log(locals())
                 if it % log_interval == 0:
-                    self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(it)))
+                    self.save(os.path.join(self.log_dir, 'test_model_{}.pt'.format(it)))
                 ep_infos.clear()
-            self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(num_learning_iterations)))
+            self.save(os.path.join(self.log_dir, 'test_model_{}.pt'.format(num_learning_iterations)))
 
     def log(self, locs, width=80, pad=35):
         self.tot_timesteps += self.num_transitions_per_env * self.vec_env.num_envs
@@ -250,11 +258,12 @@ class PPO:
             #        in self.storage.mini_batch_generator(self.num_mini_batches):
 
             for indices in batch:
+ 
                 obs_batch = self.storage.observations.view(-1, *self.storage.observations.size()[2:])[indices]
-                if self.asymmetric:
-                    states_batch = self.storage.states.view(-1, *self.storage.states.size()[2:])[indices]
-                else:
-                    states_batch = None
+                # if self.asymmetric:
+                states_batch = self.storage.states.view(-1, *self.storage.states.size()[2:])[indices]
+                # else:
+                #     states_batch = None
                 actions_batch = self.storage.actions.view(-1, self.storage.actions.size(-1))[indices]
                 target_values_batch = self.storage.values.view(-1, 1)[indices]
                 returns_batch = self.storage.returns.view(-1, 1)[indices]
@@ -263,6 +272,7 @@ class PPO:
                 old_mu_batch = self.storage.mu.view(-1, self.storage.actions.size(-1))[indices]
                 old_sigma_batch = self.storage.sigma.view(-1, self.storage.actions.size(-1))[indices]
 
+                #print(states_batch.size())
                 actions_log_prob_batch, entropy_batch, value_batch, mu_batch, sigma_batch = self.actor_critic.evaluate(obs_batch,
                                                                                                                        states_batch,
                                                                                                                        actions_batch)

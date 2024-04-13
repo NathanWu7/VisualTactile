@@ -70,11 +70,15 @@ class SAC:
         # SAC components
         self.vec_env = vec_env
         ac_kwargs = dict(hidden_sizes=[learn_cfg["hidden_nodes"]]* learn_cfg["hidden_layer"])
-        self.actor_critic = MLPActorCritic(vec_env.observation_space, vec_env.action_space, **ac_kwargs).to(self.device)
+        self.env_shape = cfg_train["env_shape"]
+        self.prop_shape = cfg_train["proprioception_shape"]
+        self.total_shape = self.env_shape + self.prop_shape
+        self.rl_model_path = cfg_train["rl_model_path"]
+        self.actor_critic = MLPActorCritic(self.total_shape, vec_env.action_space, **ac_kwargs).to(self.device)
         print(self.actor_critic)
         self.actor_critic_targ = deepcopy(self.actor_critic)
 
-        self.storage = ReplayBuffer(vec_env.num_envs, self.replay_size, self.batch_size, self.num_transitions_per_env, self.observation_space.shape,
+        self.storage = ReplayBuffer(vec_env.num_envs, self.replay_size, self.batch_size, self.num_transitions_per_env, self.total_shape,
                                      self.state_space.shape, self.action_space.shape, self.device, sampler)
 
         # Freeze target networks with respect to optimizers (only update via polyak averaging)
@@ -99,6 +103,7 @@ class SAC:
         self.use_clipped_value_loss = learn_cfg.get("use_clipped_value_loss", False)
         self.reward_scale = learn_cfg["reward_scale"]
         self.batch_size = learn_cfg["batch_size"]
+        
         self.warm_up = True
 
         # Log
@@ -108,7 +113,7 @@ class SAC:
         self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
         self.tot_timesteps = 0
         self.tot_time = 0
-        self.is_testing = is_testing
+        self.is_testing = True
         self.current_learning_iteration = 0
 
         self.apply_reset = apply_reset
@@ -135,6 +140,7 @@ class SAC:
         current_obs = self.vec_env.reset()
         current_states = self.vec_env.get_state()
         if self.is_testing:
+            self.test(self.rl_model_path)
             while True:
                 with torch.no_grad():
                     if self.apply_reset:
@@ -214,9 +220,9 @@ class SAC:
                     if self.print_log:
                         self.log(locals())
                     if it % log_interval == 0:
-                        self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(it)))
+                        self.save(os.path.join(self.log_dir, 'sac_model_{}.pt'.format(it)))
                     ep_infos.clear()
-            self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(num_learning_iterations)))
+            self.save(os.path.join(self.log_dir, 'sac_model_{}.pt'.format(num_learning_iterations)))
 
         pass
 

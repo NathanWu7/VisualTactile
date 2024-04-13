@@ -1,24 +1,27 @@
 seed: -1
 torch_deterministic: True
 
-proprioception_shape: 20
-encoded_observation_shape: 52
-env_shape: 10
-latent_shape: 32
+origin_shape: 31 #env origin
+proprioception_shape: 21  #proprio 
+encoded_observation_shape: 37 # encoded = proprio + latent
+latent_shape: 16
 
-mini_batch_size: 2
 
-encoder_model_path: "/home/nathan/VTA/VTAfford/run/encoder_model_0.pt"
+student_model_path: "/home/nathan/VisualTactile/run/student_model.pt"
+rl_model_path: "/home/nathan/VisualTactile/run/test_model_600.pt"
+adapter_model_path: "/home/nathan/VisualTactile/run/adapter_model.pt"
 
-env_encoder:
-  e_hid_sizes: [1024,512,256]
-  e_activation: elu
+policy: # only works for MlpPolicy right now
+  pi_hid_sizes: [512, 512, 256]
+  vf_hid_sizes: [512, 512, 256]
+  activation: elu # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
+
   
 learn:
-  test: False
+  test: True
   resume: 0
-  save_interval: 1000 # check for potential saves every this many iterations
+  save_interval: 400 # check for potential saves every this many iterations
   print_log: True
 
   # rollout params
-  max_iterations: 6500
+  max_iterations: 80000

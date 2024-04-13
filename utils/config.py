@@ -61,7 +61,7 @@ def load_cfg(args):
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--task',type=str, default="ur5pickup", help='choose a task')
+    parser.add_argument('--task',type=str, default="ur5cabinet", help='choose a task')
     parser.add_argument('--headless', action='store_true')
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--algo', default='test', type=str)
