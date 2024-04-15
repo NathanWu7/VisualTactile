@@ -59,11 +59,10 @@ Modify this file :   cfg/task/ur5xxxx.py  <br>
 python3 train.py --task ur5xxxx --algo sac --headless
 ```
 ### 2. VTA
-Modify this file :  cfg/task/ur5xxxx.py 
-<br>
+Modify this file :  cfg/task/ur5xxxx.py  <br>
   numEnvs : 16+
-  obs_type: ["oracle","contact_force","pointcloud","tactile"]  
-  <br>
+  obs_type: ["oracle","contact_force","pointcloud","tactile"]  <br>
+  
 ```sh
 python3 train.py --task ur5xxxx --algo vta --headless
 ```
