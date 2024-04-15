@@ -51,9 +51,9 @@ python3 train.py --task ur5cabinet_door --test
 Tensorboard logdir :/run
 
 ### 1. RL 
-Modify this file :cfg/task/ur5xxxx.py 
-  numEnvs : 512+
-  obs_type: ["oracle","contact_force"]
+Modify this file :cfg/task/ur5xxxx.py  <br>
+  numEnvs : 512+                       <br>                        
+  obs_type: ["oracle","contact_force"] <br>
 
 ```sh
 python3 train.py --task ur5xxxx --algo sac --headless
