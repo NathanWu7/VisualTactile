@@ -61,10 +61,10 @@ def load_cfg(args):
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--task',type=str, default="ur5cabinet", help='choose a task')
+    parser.add_argument('--task',type=str, default="ur5cabinet_door", help='choose a task')
     parser.add_argument('--headless', action='store_true')
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--algo', default='test', type=str)
+    parser.add_argument('--algo', default='sac', type=str)
     parser.add_argument('--use_gpu', default=True, type=bool) #for physicX and isaac
     parser.add_argument('--sim_device', type=str, default="cuda:0", help='Physics Device in PyTorch-like syntax')
     parser.add_argument('--device_id', default=0, type=int)

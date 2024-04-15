@@ -18,9 +18,9 @@ env:
   controlFrequencyInv: 1
 
   debug: False # if debug, num_envs will be set to numDebugEnvs
-  numDebugEnvs: 16
+  numDebugEnvs: 2
   Pointcloud_Visualize: True
-  Camera_Visualize: False
+  Camera_Visualize: True
   debug_camera_type: "camera" #"camera" or "sensor"
   
 

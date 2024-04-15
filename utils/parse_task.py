@@ -2,6 +2,7 @@
 from tasks.ur5pickup import Ur5pickup
 from tasks.ur5pickandplace import Ur5pickandplace
 from tasks.ur5cabinet import Ur5cabinet
+from tasks.ur5cabinet_door import Ur5cabinet_door
 #from tasks.franka_cube_stack import FrankaCubeStack
 from tasks.base.vec_task import VecTaskCPU, VecTaskGPU, VecTaskPython, VecTaskPythonArm
 from RL.ppo.ppo import PPO
@@ -17,10 +18,7 @@ from RL.pc_vtafford.vtpolicy import vtpolicy
 def parse_task(args, env_cfg, train_cfg, sim_params):
     device_id = args.device_id
     rl_device = args.sim_device
-    if args.task == "cartpole":
-        env = Cartpole(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)   #vec_gpu
-        vec_env = VecTaskPython(env, rl_device)
-    elif args.task == "ur5pickup":
+    if args.task == "ur5pickup":
         env = Ur5pickup(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
         vec_env = VecTaskPython(env, rl_device)
     elif args.task == "ur5pickandplace":
@@ -28,6 +26,9 @@ def parse_task(args, env_cfg, train_cfg, sim_params):
         vec_env = VecTaskPython(env, rl_device)
     elif args.task == "ur5cabinet":
         env = Ur5cabinet(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
+        vec_env = VecTaskPython(env, rl_device)
+    elif args.task == "ur5cabinet_door":
+        env = Ur5cabinet_door(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
         vec_env = VecTaskPython(env, rl_device)
     
     if args.algo == 'ppo':
@@ -89,7 +90,7 @@ def parse_task(args, env_cfg, train_cfg, sim_params):
                  device=rl_device,
                  sampler='random',
                  log_dir='run',
-                 is_testing=False,
+                 is_testing=args.test,
                  print_log=True,
                  apply_reset=False,
                  asymmetric=False
@@ -100,7 +101,7 @@ def parse_task(args, env_cfg, train_cfg, sim_params):
                  device=rl_device,
                  sampler='random',
                  log_dir='run',
-                 is_testing=False,
+                 is_testing=args.test,
                  print_log=True,
                  apply_reset=False,
                  asymmetric=False)
@@ -110,7 +111,7 @@ def parse_task(args, env_cfg, train_cfg, sim_params):
                  device=rl_device,
                  sampler='random',
                  log_dir='run',
-                 is_testing=False,
+                 is_testing=args.test,
                  print_log=True,
                  apply_reset=False,
                  asymmetric=False)

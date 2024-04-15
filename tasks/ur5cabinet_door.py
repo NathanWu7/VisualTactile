@@ -365,7 +365,7 @@ class Ur5cabinet_door(BaseTask):
 
             if  "pointcloud" in self.obs_type:
                 camera_handle = self.gym.create_camera_sensor(env_ptr, self.camera_props)
-                self.gym.set_camera_location(camera_handle, env_ptr, gymapi.Vec3(0.64, 0.485, self.table_stand_height+0.5), gymapi.Vec3(0.18, 0.485, self.table_stand_height))
+                self.gym.set_camera_location(camera_handle, env_ptr, gymapi.Vec3(0.2, 0.8, self.table_stand_height+0.7), gymapi.Vec3(0.7, 0.3, self.table_stand_height+0.2))
                 camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_ptr, camera_handle, gymapi.IMAGE_DEPTH)
                 torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor)
                 cam_vinv = torch.inverse((torch.tensor(self.gym.get_camera_view_matrix(self.sim, env_ptr, camera_handle)))).to(self.device)
@@ -615,7 +615,7 @@ class Ur5cabinet_door(BaseTask):
 
                 #print(points.shape)
                 if points.shape[0] > 0:
-                    selected_points = self.sample_points(points, sample_num=self.pointCloudDownsampleNum, sample_mathed='furthest')
+                    selected_points = self.sample_points(points, sample_num=self.pointCloudDownsampleNum, sample_mathed='random')
                 else:
                     selected_points = torch.zeros((self.num_envs, self.pointCloudDownsampleNum, 3), device=self.device)
                 
@@ -858,13 +858,13 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     #print(d_cabinet)
     force = states["force"].squeeze(1)
     force[force > 200] = 200
-    #grasp = force > 10
-    goal = d_cabinet > 0.5
+    touch = force > 0
+    goal = d_cabinet > 0.3
     close = d_cabinet < 0.01
 
     rew_buf =   - 0.6 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * close \
-                + force * 0.0005 \
-                + torch.tanh(5 * d_cabinet) * 0.5 \
+                + touch * 0.1 \
+                + torch.tanh(3 * d_cabinet) * 0.5 \
                 + goal * 600
 
     #reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (rewards > 0.8), torch.ones_like(reset_buf), reset_buf)

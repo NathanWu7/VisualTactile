@@ -2,6 +2,13 @@ from utils.config import set_np_formatting, set_seed, get_args, parse_sim_params
 from utils.parse_task import parse_task
 from utils.runner import Runner
 
+
+# task 
+# ur5cabinet_door
+# ur5cabinet
+# ur5pickup
+# ur5pickandplace
+
 def train():
     print("Algorithm: ", args.algo)
 
@@ -15,7 +22,7 @@ def train():
             runner.run()
 
     else:
-        print("Unrecognized algorithm!\nAlgorithm should be one of: [ppo, sac, td3, trpo]")
+        print("Unrecognized algorithm!")
 
 
 if __name__ == '__main__':

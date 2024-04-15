@@ -365,7 +365,7 @@ class Ur5cabinet(BaseTask):
 
             if  "pointcloud" in self.obs_type:
                 camera_handle = self.gym.create_camera_sensor(env_ptr, self.camera_props)
-                self.gym.set_camera_location(camera_handle, env_ptr, gymapi.Vec3(0.64, 0.485, self.table_stand_height+0.5), gymapi.Vec3(0.18, 0.485, self.table_stand_height))
+                self.gym.set_camera_location(camera_handle, env_ptr, gymapi.Vec3(0.2, 0.8, self.table_stand_height+0.7), gymapi.Vec3(0.7, 0.3, self.table_stand_height+0.2))
                 camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_ptr, camera_handle, gymapi.IMAGE_DEPTH)
                 torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor)
                 cam_vinv = torch.inverse((torch.tensor(self.gym.get_camera_view_matrix(self.sim, env_ptr, camera_handle)))).to(self.device)
@@ -615,7 +615,7 @@ class Ur5cabinet(BaseTask):
 
                 #print(points.shape)
                 if points.shape[0] > 0:
-                    selected_points = self.sample_points(points, sample_num=self.pointCloudDownsampleNum, sample_mathed='furthest')
+                    selected_points = self.sample_points(points, sample_num=self.pointCloudDownsampleNum, sample_mathed='random')
                 else:
                     selected_points = torch.zeros((self.num_envs, self.pointCloudDownsampleNum, 3), device=self.device)
                 
