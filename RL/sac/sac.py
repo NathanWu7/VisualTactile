@@ -113,7 +113,7 @@ class SAC:
         self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
         self.tot_timesteps = 0
         self.tot_time = 0
-        self.is_testing = True
+        self.is_testing = is_testing
         self.current_learning_iteration = 0
 
         self.apply_reset = apply_reset

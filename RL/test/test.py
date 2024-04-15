@@ -18,7 +18,7 @@ class TEST:
         while True:
             with torch.no_grad():
                 # Compute the action
-                actions = torch.zeros((self.vec_env.num_envs, 5), device = self.device)
+                actions = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
                 
                 #(x,y,z,rx,ry,rz,gripper)
                 #print("q",current_obs[:,0:7])
@@ -44,7 +44,7 @@ class TEST:
 
                 counter += 1
                 if torch.any(counter  > 200 ):
-                    actions[counter  > 200, 4] = 0.05  
+                    actions[counter  > 200, 6] = 0.05  
 
                 if torch.any(counter  > 300 ):
                     actions[counter  > 300, 0] = -0.05  
@@ -54,7 +54,7 @@ class TEST:
                 next_obs, rews, dones, infos = self.vec_env.step(actions)
                 next_states = self.vec_env.get_state()
                 #print(next_states.shape)
-                #print(rews.mean())
+                print(rews.mean())
                 counter[dones==1] = 0
                 #print(next_obs[:,])
 
