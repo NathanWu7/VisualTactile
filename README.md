@@ -30,7 +30,7 @@ pip install -r requirements.txt
 ```
 
 ## Task test
-# Lift object
+### Lift object
 ```sh
 python3 train.py --task ur5pickup --test
 ```
