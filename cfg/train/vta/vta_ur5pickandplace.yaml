@@ -10,7 +10,7 @@ TDownSampleNum: 64
 
 student_model_path: "/home/nathan/VisualTactile/run/pickandplace_student/student_model.pt"
 rl_model_path: "/home/nathan/VisualTactile/run/pickandplace/sac_model_4400.pt"
-adapter_model_path: "/home/nathan/VisualTactile/run/pickandplace_TAN/TAN_model.pt"
+TAN_model_path: "/home/nathan/VisualTactile/run/pickandplace_TAN/TAN_model.pt"
 
 policy: # only works for MlpPolicy right now
   # training params

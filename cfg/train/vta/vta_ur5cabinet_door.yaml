@@ -9,8 +9,8 @@ PCDownSampleNum: 8192
 TDownSampleNum: 64
 
 student_model_path: "/home/nathan/VisualTactile/run/cabinet_door_student/student_model.pt"
-rl_model_path: "/home/nathan/VisualTactile/run/cabinet_door/sac_model_2000.pt"
-adapter_model_path: "/home/nathan/VisualTactile/run/cabinet_door_TAN/TAN_model.pt"
+rl_model_path: "/home/nathan/VisualTactile/run/cabinet_door/sac_model_5600.pt"
+TAN_model_path: "/home/nathan/VisualTactile/run/cabinet_door_TAN/TAN_model.pt"
 
 policy: # only works for MlpPolicy right now
   # training params

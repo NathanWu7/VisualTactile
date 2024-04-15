@@ -19,10 +19,11 @@ class vtafford:
                  vec_env,
                  cfg_train,
                  log_dir='run',
+                 is_testing = False,
                  device='cpu'
                  ):
-        self.is_testing = True
-        self.pc_debug = True
+        self.is_testing = is_testing
+        self.pc_debug = is_testing
         self.pointCloudVisualizerInitialized = False
 
         self.vec_env = vec_env
@@ -42,7 +43,7 @@ class vtafford:
         self.latent_shape = self.cfg_train["latent_shape"]
         self.prop_shape = self.cfg_train["proprioception_shape"]
  
-        self.TAN_path = self.cfg_train["adapter_model_path"]
+        self.TAN_path = self.cfg_train["TAN_model_path"]
         self.Student_model_path = self.cfg_train["student_model_path"]
         self.input_shape = self.latent_shape + self.prop_shape 
         self.origin_shape =  self.cfg_train["origin_shape"]
@@ -154,7 +155,6 @@ class vtafford:
         while True:
 
             actions = self.actor_critic.act(current_obs)   
-            
             pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
             tactiles = current_pcs[:,self.pointclouds_shape:,0:3]
             is_zero = torch.all(tactiles == 0, dim=-1)
@@ -211,13 +211,11 @@ class vtafford:
                     self.pointCloudVisualizer.add_geometry(self.pcd)
                     self.pointCloudVisualizerInitialized = True
                 else :
-                    self.pointCloudVisualizer.update(self.pcd)  
-                #self.writer.add_scalar('Loss/Adapter_action', action_loss,update_step)   
-                #self.writer.add_scalar('Loss/Adapter_env', env_loss,update_step)       
+                    self.pointCloudVisualizer.update(self.pcd)      
                 #else:
 
                 #print(next_obs[:,])
-            if update_step % 100 == 0:
+            if update_step % 100 == 0 and update_step != 0:
                 torch.save(self.TAN.state_dict(), self.TAN_path)
                 print("Save at:", update_step)
 

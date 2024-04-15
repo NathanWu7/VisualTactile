@@ -20,9 +20,10 @@ class vtpolicy:
                  vec_env,
                  cfg_train,
                  log_dir='run',
+                 is_testing = False,
                  device='cpu'
                  ):
-        self.is_testing = True
+        self.is_testing = is_testing
         self.pc_debug = False
         self.pointCloudVisualizerInitialized = False
 
@@ -34,7 +35,7 @@ class vtpolicy:
         self.num_transitions_per_env = 4
 
         self.pointclouds_shape = self.cfg_train["PCDownSampleNum"]
-        self.tactile_shape = 64 * 2
+        self.tactile_shape = self.cfg_train["TDownSampleNum"] * 2
         self.cfg_train = copy.deepcopy(cfg_train)
         learn_cfg = self.cfg_train["learn"]
 
@@ -98,6 +99,7 @@ class vtpolicy:
         update_step = 1
         iter = 0
         all_indices = set(torch.arange(pointclouds.size(0)).numpy())
+        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,5),device = self.device)
         counter = torch.zeros((self.vec_env.num_envs), device = self.device)
         action_labels = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
         
@@ -124,18 +126,19 @@ class vtpolicy:
                         is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
                         pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
 
-                        shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
+                        #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
 
-                        pcs = shuffled[:, :self.pointclouds_shape, :]
+                        pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
                         pcs[:,:,3] = 1 
+                        pcs[:,-self.tactile_shape:,4] = 1
                                 
                         update_step += 1            
-                        output = self.TAN(pcs)  
+                        output = self.TAN(pcs[:,:,:4])  
 
                     else:
-                        pcs = pointclouds[:, :self.pointclouds_shape, :]
+                        pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
                         pcs[:,:,3] = 1 
-                        output = self.TAN(pcs)
+                        output = self.TAN(pcs[:,:,:4])
 
                     pcs[:,:,3] = output.detach()
                     mu, sigma, pi = self.student_actor.act(pcs,current_obs[:,:self.prop_shape])  
@@ -188,21 +191,21 @@ class vtpolicy:
                     is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
                     pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
 
-                    shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
+                    #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
 
-                    pcs = shuffled[:, :self.pointclouds_shape, :]
+                    pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
                     pcs[:,:,3] = 1 
+                    pcs[:,-self.tactile_shape:,4] = 1
                             
-                            
-                    output = self.TAN(pcs)  
+                    output = self.TAN(pcs[:,:,:4])  
 
                 else:
-                    pcs = pointclouds[:, :self.pointclouds_shape, :]
+                    pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
                     pcs[:,:,3] = 1 
-                    output = self.TAN(pcs)
+                    output = self.TAN(pcs[:,:,:4])
                 
                 pcs[:,:,3] = output.detach()
-
+                
                 # print("current_obs: ",current_obs)
 
                 mu, sigma, pi = self.student_actor.act(pcs,current_obs[:,:self.prop_shape])    #[:,:self.prop_shape]
