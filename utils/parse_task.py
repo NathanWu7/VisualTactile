@@ -9,7 +9,6 @@ from RL.ppo.ppo import PPO
 #from RL.ppo_pc.ppopc import PPOPC
 from RL.sac.sac import SAC
 from RL.td3.td3 import TD3
-from RL.trpo.trpo import TRPO
 from RL.test.test import TEST
 from RL.pc_student.Adapter4D import PCSampling
 from RL.pc_vtafford.vtafford import vtafford
@@ -63,11 +62,13 @@ def parse_task(args, env_cfg, train_cfg, sim_params):
         task = vtafford(vec_env,
                          train_cfg,
                          log_dir='run',
+                         is_testing = args.test,
                          device=rl_device)
     elif args.algo == 'vtp':
         task = vtpolicy(vec_env,
                          train_cfg,
                          log_dir='run',
+                         is_testing = args.test,
                          device=rl_device)
         
     elif args.algo == 'sac':
@@ -97,16 +98,6 @@ def parse_task(args, env_cfg, train_cfg, sim_params):
                  )
     elif args.algo == 'td3':
         task = TD3(vec_env,
-                 train_cfg,
-                 device=rl_device,
-                 sampler='random',
-                 log_dir='run',
-                 is_testing=args.test,
-                 print_log=True,
-                 apply_reset=False,
-                 asymmetric=False)
-    elif args.algo == 'trpo':
-        task = TRPO(vec_env,
                  train_cfg,
                  device=rl_device,
                  sampler='random',
