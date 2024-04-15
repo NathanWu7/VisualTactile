@@ -1,3 +1,4 @@
+## Dependencies
 Some dependencies can be installed by
 
 ```sh
@@ -28,20 +29,20 @@ Finally, run the following to install other packages.
 pip install -r requirements.txt
 ```
 
-### Task test
+## Task test
 # Lift object
 ```sh
 python3 train.py --task ur5pickup --test
 ```
-# Pick and Place
+### Pick and Place
 ```sh
 python3 train.py --task ur5pickandplace --test
 ```
-# Cabinet draw
+### Cabinet draw
 ```sh
 python3 train.py --task ur5cabinet --test
 ```
-# Open cabinet door
+### Open cabinet door
 ```sh
 python3 train.py --task ur5cabinet_door --test
 ```
