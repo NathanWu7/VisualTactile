@@ -46,3 +46,35 @@ python3 train.py --task ur5cabinet --test
 ```sh
 python3 train.py --task ur5cabinet_door --test
 ```
+## Training
+
+Tensorboard logdir :/run
+
+### 1. RL 
+Modify this file :   cfg/task/ur5xxxx.py  <br>
+  numEnvs : 512+                                         
+  obs_type: ["oracle","contact_force"] <br>
+
+```sh
+python3 train.py --task ur5xxxx --algo sac --headless
+```
+### 2. VTA
+Modify this file :  cfg/task/ur5xxxx.py  <br>
+  numEnvs : 16+
+  obs_type: ["oracle","contact_force","pointcloud","tactile"]  <br>
+  
+```sh
+python3 train.py --task ur5xxxx --algo vta --headless
+```
+For testing:
+```sh
+python3 train.py --task ur5xxxx --algo vta --test --headless
+```
+### 3. VTP
+```sh
+python3 train.py --task ur5xxxx --algo vtp --headless
+```
+For testing:
+```sh
+python3 train.py --task ur5xxxx --algo vtp --test --headless
+```
