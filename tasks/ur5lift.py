@@ -35,7 +35,7 @@ def get_UR5_asset(gym, sim, asset_root, asset_file):
     return ur5_asset
 
 
-class Ur5pickup(BaseTask):
+class Ur5lift(BaseTask):
     def __init__(self, cfg, sim_params, physics_engine, device_type, device_id, headless):
         self.cfg = cfg
         self.sim_params = sim_params
@@ -512,8 +512,7 @@ class Ur5pickup(BaseTask):
         #self.gym.refresh_force_sensor_tensor(self.sim)
         if "pointcloud" in self.obs_type or "tactile" in self.obs_type:
             self.compute_point_cloud_observation()
-        if "contact_force" in self.obs_type:
-            self.compute_contact_force()
+        self.compute_contact_force()
         self._update_states()
         
 
@@ -586,6 +585,8 @@ class Ur5pickup(BaseTask):
 
     def compute_point_cloud_observation(self):
 
+        self.gym.fetch_results(self.sim, True)
+        self.gym.step_graphics(self.sim)
         self.gym.render_all_camera_sensors(self.sim)
         self.gym.start_access_image_tensors(self.sim)
 
@@ -636,19 +637,22 @@ class Ur5pickup(BaseTask):
 
 
                     #contact_force = np.dot(cam_vinv.cpu().numpy()[:3, :3], left_contact_force.reshape(3, 1))[2]
-                    contact_force_tensor = torch.tensor(1).to(self.device)
+                    #contact_force_tensor = torch.tensor(1).to(self.device)
 
                     cam_proj = torch.tensor(self.gym.get_camera_proj_matrix(self.sim, self.envs[i], self.sensors[real_index]),
                                             device=self.device)
-
+                    #print(cam_proj)
                     camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, self.envs[i],
                                                                         self.sensors[real_index], gymapi.IMAGE_DEPTH)
+ 
                     torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor)
-                    torch_cam_tensor = self.transforms_depth(torch_cam_tensor) * contact_force_tensor
+
+                    torch_cam_tensor = self.transforms_depth(torch_cam_tensor) #* contact_force_tensor
 
                     points = sensor_depth_image_to_point_cloud_GPU(torch_cam_tensor, cam_vinv,
                                                     cam_proj, self.sensor_u2, self.sensor_v2,
                                                     self.sensor_width, self.sensor_height, 0.1, self.device).contiguous()
+                    #print(points)
                     if points.numel() != 0:
                         points = self.sample_points(points, sample_num=self.sensor_downsample_num, sample_mathed='random')
                         # 存储points pair

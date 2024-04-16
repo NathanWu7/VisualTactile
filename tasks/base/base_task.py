@@ -35,6 +35,7 @@ class BaseTask():
         self.headless = cfg["headless"]
         # double check!
         self.graphics_device_id = self.device_id
+
         if enable_camera_sensors == False:
             self.graphics_device_id = -1
 
@@ -57,6 +58,7 @@ class BaseTask():
         self.control_freq_inv = cfg["env"].get("controlFrequencyInv", 1)
         self.dof_config = cfg["env"]["dof_config"]
         self.full_dof = cfg["env"]["full_dof"]
+        self.task_name = cfg["env"]["taskname"]
          
         self.actions = torch.zeros((self.num_envs, self.full_dof), device = self.device, dtype = torch.float)
         # optimization flags for pytorch JIT

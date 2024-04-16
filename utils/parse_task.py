@@ -1,5 +1,5 @@
        
-from tasks.ur5pickup import Ur5pickup
+from tasks.ur5lift import Ur5lift
 from tasks.ur5pickandplace import Ur5pickandplace
 from tasks.ur5cabinet import Ur5cabinet
 from tasks.ur5cabinet_door import Ur5cabinet_door
@@ -17,8 +17,8 @@ from RL.pc_vtafford.vtpolicy import vtpolicy
 def parse_task(args, env_cfg, train_cfg, sim_params):
     device_id = args.device_id
     rl_device = args.sim_device
-    if args.task == "ur5pickup":
-        env = Ur5pickup(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
+    if args.task == "ur5lift":
+        env = Ur5lift(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
         vec_env = VecTaskPython(env, rl_device)
     elif args.task == "ur5pickandplace":
         env = Ur5pickandplace(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)

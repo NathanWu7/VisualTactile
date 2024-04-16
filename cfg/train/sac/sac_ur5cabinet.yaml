@@ -10,7 +10,7 @@ rl_model_path: "/home/nathan/VisualTactile/run/cabinet_draw/sac_model_800.pt"
 learn:
   test: False
   resume: 0
-  save_interval: 400 # check for potential saves every this many iterations
+  save_interval: 500 # check for potential saves every this many iterations
   print_log: True
 
   # rollout params

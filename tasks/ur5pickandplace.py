@@ -511,8 +511,7 @@ class Ur5pickandplace(BaseTask):
         #self.gym.refresh_force_sensor_tensor(self.sim)
         if "pointcloud" in self.obs_type or "tactile" in self.obs_type:
             self.compute_point_cloud_observation()
-        if "contact_force" in self.obs_type:
-            self.compute_contact_force()
+        self.compute_contact_force()
         self._update_states()
         
 
@@ -583,7 +582,8 @@ class Ur5pickandplace(BaseTask):
 
 
     def compute_point_cloud_observation(self):
-
+        self.gym.fetch_results(self.sim, True)
+        self.gym.step_graphics(self.sim)
         self.gym.render_all_camera_sensors(self.sim)
         self.gym.start_access_image_tensors(self.sim)
 

@@ -11,6 +11,7 @@ import random
 import numpy as np 
 
 import copy
+import os
 import open3d as o3d
 
 
@@ -27,6 +28,7 @@ class vtafford:
         self.pointCloudVisualizerInitialized = False
 
         self.vec_env = vec_env
+        self.task_name = vec_env.task_name
         self.action_space = vec_env.action_space
         self.state_space = vec_env.state_space
         self.device = device
@@ -36,19 +38,19 @@ class vtafford:
         self.pointclouds_shape = self.cfg_train["PCDownSampleNum"]
         self.tactile_shape = self.cfg_train["TDownSampleNum"] * 2
         self.cfg_train = copy.deepcopy(cfg_train)
-        learn_cfg = self.cfg_train["learn"]
 
-        self.rl_model_path = self.cfg_train["rl_model_path"]
 
+        self.rl_algo = self.cfg_train["rl_algo"]
+        self.rl_iter = self.cfg_train["rl_iter"]
         self.latent_shape = self.cfg_train["latent_shape"]
         self.prop_shape = self.cfg_train["proprioception_shape"]
  
-        self.TAN_path = self.cfg_train["TAN_model_path"]
-        self.Student_model_path = self.cfg_train["student_model_path"]
+        self.model_dir = os.path.join(log_dir,self.task_name) 
+        if not os.path.exists(self.model_dir):
+            os.makedirs(self.model_dir)
         self.input_shape = self.latent_shape + self.prop_shape 
         self.origin_shape =  self.cfg_train["origin_shape"]
 
-        self.init_noise_std = learn_cfg.get("init_noise_std", 0.3)
         self.model_cfg = self.cfg_train["policy"]
         ac_kwargs = dict(hidden_sizes=[self.model_cfg["hidden_nodes"]]* self.model_cfg["hidden_layer"])
 
@@ -60,7 +62,7 @@ class vtafford:
         self.actor_critic =  MLPActorCritic(self.origin_shape, vec_env.action_space, **ac_kwargs).to(self.device)
 
         self.actor_critic.to(self.device)
-        self.actor_critic.load_state_dict(torch.load(self.rl_model_path))
+        self.actor_critic.load_state_dict(torch.load(os.path.join(self.model_dir,self.rl_algo+'_model_{}.pt'.format(self.rl_iter))))
         self.actor_critic.eval()
         
         #self.encoded_obs = torch.zeros((self.vec_env.num_envs, self.input_shape), dtype=torch.float, device=self.device)
@@ -95,7 +97,7 @@ class vtafford:
         
 
         if self.is_testing:
-            self.TAN.load_state_dict(torch.load(self.TAN_path))
+            self.TAN.load_state_dict(torch.load(os.path.join(self.model_dir,'TAN_model.pt')))
             self.TAN.eval()
             while True:
                 with torch.no_grad():
@@ -111,7 +113,7 @@ class vtafford:
                     next_obs, rews, dones, infos = self.vec_env.step(actions)
                     next_pointcloud = self.vec_env.get_pointcloud()  
 
-
+                    
                     if len(touch_indices) > 0:
                         pointclouds[:,:,3] = 0
                         tactile_part = pointclouds[:,self.pointclouds_shape:,:]
@@ -166,7 +168,10 @@ class vtafford:
             next_obs, rews, dones, infos = self.vec_env.step(actions)
 
             next_pointcloud = self.vec_env.get_pointcloud()  
-            #print(torch.mean(next_pointcloud,axis=1))
+            #print("vision:", torch.mean(next_pointcloud[:,:self.pointclouds_shape],dim=1))
+            # print(rews)
+            # print("tactile:", torch.mean(next_pointcloud[:,self.pointclouds_shape:],dim=1))
+            # print()          
             
             if len(touch_indices) > 0:
                 pointclouds[:,:,3] = 0
@@ -175,7 +180,6 @@ class vtafford:
                 pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
 
                 #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
-
                 pcs = pointclouds[:, -self.pointclouds_shape:, :]
                 labels = pcs[:,:,3].clone()
                 pcs[:,:,3] = 1 
@@ -185,6 +189,7 @@ class vtafford:
                 # print("output:", output)
                 #print("label:", label)
                 loss = self.criterion(output[touch_indices,:],labels[touch_indices,:])
+                #print(loss)
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -216,8 +221,8 @@ class vtafford:
 
                 #print(next_obs[:,])
             if update_step % 100 == 0 and update_step != 0:
-                torch.save(self.TAN.state_dict(), self.TAN_path)
-                print("Save at:", update_step)
+                torch.save(self.TAN.state_dict(),os.path.join(self.model_dir,'TAN_model.pt') )
+                print("Save at:", update_step, "  loss: ",loss.item())
 
             current_obs = next_obs
             current_pcs = next_pointcloud

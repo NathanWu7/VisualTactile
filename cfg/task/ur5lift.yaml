@@ -1,4 +1,5 @@
 env:
+  taskname: "ur5lift"
   numEnvs: 16
   numStates: 28 #
   sim_device: "cuda:0"
@@ -9,7 +10,7 @@ env:
   PCDownSampleNum: 8192
   TDownSampleNum: 64
   AllDownSampleNum: 8320
-  obs_type: ["oracle","contact_force","pointcloud","tactile"]    #["oracle","contact_force","pointcloud","tactile"]  
+  obs_type: ["oracle","pointcloud","tactile"]    #["oracle","pointcloud","tactile"]  
   aggregateMode: 1
   seed: 42
 

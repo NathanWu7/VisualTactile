@@ -11,6 +11,7 @@ import random
 import numpy as np 
 
 import copy
+import os
 import time
 import open3d as o3d
 
@@ -28,6 +29,7 @@ class vtpolicy:
         self.pointCloudVisualizerInitialized = False
 
         self.vec_env = vec_env
+        self.task_name = vec_env.task_name
         self.action_space = vec_env.action_space
         self.state_space = vec_env.state_space
         self.device = device
@@ -37,19 +39,16 @@ class vtpolicy:
         self.pointclouds_shape = self.cfg_train["PCDownSampleNum"]
         self.tactile_shape = self.cfg_train["TDownSampleNum"] * 2
         self.cfg_train = copy.deepcopy(cfg_train)
-        learn_cfg = self.cfg_train["learn"]
 
-        self.rl_model_path = self.cfg_train["rl_model_path"]
+        self.rl_algo = self.cfg_train["rl_algo"]
+        self.rl_iter = self.cfg_train["rl_iter"]
 
         self.latent_shape = self.cfg_train["latent_shape"]
         self.prop_shape = self.cfg_train["proprioception_shape"]
  
-        self.TAN_path = self.cfg_train["TAN_model_path"]
-        self.Student_model_path = self.cfg_train["student_model_path"]
         self.input_shape = self.latent_shape + self.prop_shape 
         self.origin_shape =  self.cfg_train["origin_shape"]
 
-        self.init_noise_std = learn_cfg.get("init_noise_std", 0.3)
         self.model_cfg = self.cfg_train["policy"]
         self.student_cfg = self.cfg_train["student"]
         ac_kwargs = dict(hidden_sizes=[self.model_cfg["hidden_nodes"]]* self.model_cfg["hidden_layer"])
@@ -59,19 +58,21 @@ class vtpolicy:
 
         self.log_dir = log_dir
         self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
-
+        self.model_dir = os.path.join(log_dir,self.task_name) 
+        if not os.path.exists(self.model_dir):
+            os.makedirs(self.model_dir)
         self.actor_critic =  MLPActorCritic(self.origin_shape, vec_env.action_space, **ac_kwargs).to(self.device)
         self.student_actor = Student(self.input_shape, self.latent_shape, self.action_space.shape, self.vec_env.num_envs, self.device, self.student_cfg)
 
         self.actor_critic.to(self.device)
         self.student_actor.to(self.device)
-        self.actor_critic.load_state_dict(torch.load(self.rl_model_path))
+        self.actor_critic.load_state_dict(torch.load(os.path.join(self.model_dir,self.rl_algo+'_model_{}.pt'.format(self.rl_iter))))
         self.actor_critic.eval()
         
         #self.encoded_obs = torch.zeros((self.vec_env.num_envs, self.input_shape), dtype=torch.float, device=self.device)
 
         self.TAN = Network(4, 16).to(device)
-        self.TAN.load_state_dict(torch.load(self.TAN_path))
+        self.TAN.load_state_dict(torch.load(os.path.join(self.model_dir,'TAN_model.pt')))
         self.TAN.eval()
 
         self.optimizer = optim.Adam([
@@ -88,7 +89,9 @@ class vtpolicy:
             self.pcd = o3d.geometry.PointCloud()
 
     def run(self,num_learning_iterations=0,log_interval=1):
-
+        model_dir = os.path.join(self.log_dir,self.task_name) 
+        if not os.path.exists(model_dir):
+            os.makedirs(model_dir)
         current_obs = self.vec_env.reset()
         current_pcs = self.vec_env.get_pointcloud()
 
@@ -106,7 +109,7 @@ class vtpolicy:
 
         if self.is_testing:
 
-            self.student_actor.load_state_dict(torch.load(self.Student_model_path))
+            self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir,'policy_model.pt')))
             self.student_actor.eval()
             while True:
                 with torch.no_grad():
@@ -252,8 +255,8 @@ class vtpolicy:
                     self.pointCloudVisualizer.update(self.pcd)  
 
             if update_step % 100 == 0:
-                torch.save(self.student_actor.state_dict(), self.Student_model_path)
-                print("Save at:", update_step, " Iter:",iter)
+                torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model.pt'))
+                print("Save at:", update_step, " Iter:",iter, "  Loss: ", loss.item())
                 iter = iter + 1 if iter < 10 else 0
             
             current_obs = next_obs

@@ -69,12 +69,14 @@ class SAC:
         self.num_transitions_per_env=learn_cfg["nsteps"]
         # SAC components
         self.vec_env = vec_env
+        self.task_name = vec_env.task_name
         ac_kwargs = dict(hidden_sizes=[learn_cfg["hidden_nodes"]]* learn_cfg["hidden_layer"])
         self.env_shape = cfg_train["env_shape"]
         self.prop_shape = cfg_train["proprioception_shape"]
         self.total_shape = self.env_shape + self.prop_shape
-        self.rl_model_path = cfg_train["rl_model_path"]
+        self.iter = cfg_train["load_iter"]
         self.actor_critic = MLPActorCritic(self.total_shape, vec_env.action_space, **ac_kwargs).to(self.device)
+        print(self.task_name)
         print(self.actor_critic)
         self.actor_critic_targ = deepcopy(self.actor_critic)
 
@@ -109,6 +111,9 @@ class SAC:
         # Log
         log_dir = log_dir #+ "_seed{}".format(self.vec_env.task.cfg["seed"])
         self.log_dir = log_dir
+        self.model_dir = os.path.join(self.log_dir,self.task_name) 
+        if not os.path.exists(self.model_dir):
+            os.makedirs(self.model_dir)
         self.print_log = print_log
         self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
         self.tot_timesteps = 0
@@ -139,8 +144,9 @@ class SAC:
         """
         current_obs = self.vec_env.reset()
         current_states = self.vec_env.get_state()
+
         if self.is_testing:
-            self.test(self.rl_model_path)
+            self.test(os.path.join(self.model_dir,'sac_model_{}.pt'.format(self.iter)))
             while True:
                 with torch.no_grad():
                     if self.apply_reset:
@@ -220,9 +226,9 @@ class SAC:
                     if self.print_log:
                         self.log(locals())
                     if it % log_interval == 0:
-                        self.save(os.path.join(self.log_dir, 'sac_model_{}.pt'.format(it)))
+                        self.save(os.path.join(self.model_dir,'sac_model_{}.pt'.format(it)))
                     ep_infos.clear()
-            self.save(os.path.join(self.log_dir, 'sac_model_{}.pt'.format(num_learning_iterations)))
+            self.save(os.path.join(self.model_dir, 'sac_model_{}.pt'.format(num_learning_iterations)))
 
         pass
 

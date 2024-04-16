@@ -5,12 +5,12 @@ clip_actions: 1.0
 
 env_shape: 10
 proprioception_shape: 21
-rl_model_path: "/home/nathan/VisualTactile/run/pickandplace/sac_model_4400.pt"
+load_iter: 3200
 
 learn:
   test: False
   resume: 0
-  save_interval: 400 # check for potential saves every this many iterations
+  save_interval: 500 # check for potential saves every this many iterations
   print_log: True
 
   # rollout params
