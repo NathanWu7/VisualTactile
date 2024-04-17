@@ -62,7 +62,7 @@ class vtpolicy:
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
         self.actor_critic =  MLPActorCritic(self.origin_shape, vec_env.action_space, **ac_kwargs).to(self.device)
-        self.student_actor = Student(self.input_shape, self.latent_shape, self.action_space.shape, self.vec_env.num_envs, self.device, self.student_cfg)
+        self.student_actor = Student(self.input_shape, self.pointclouds_shape, self.latent_shape, self.action_space.shape, self.vec_env.num_envs, self.device, self.student_cfg)
 
         self.actor_critic.to(self.device)
         self.student_actor.to(self.device)

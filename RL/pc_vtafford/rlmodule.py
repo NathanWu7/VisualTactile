@@ -112,16 +112,17 @@ class ActorCritic(nn.Module):
         return actions_log_prob, entropy, value, actions_mean, self.log_std.repeat(actions_mean.shape[0], 1)
 
 class Student(nn.Module):
-    def __init__(self, obs_shape,  latent_size, actions_shape, num_envs, device, model_cfg):
+    def __init__(self, obs_shape,  pointclouds_shape, latent_size, actions_shape, num_envs, device, model_cfg):
         super(Student, self).__init__()
         self.hidden_size = model_cfg['pi_hid_sizes'][-1]
-        self.num_gaussians = 8
+        self.num_gaussians = model_cfg['num_gaussians']
         self.actions_space = actions_shape[0]
-        self.replay_size = 300
+        self.replay_size = model_cfg['replay_size']
         self.total_size = self.replay_size * num_envs
-        self.batch_size = 32
+        self.batch_size = model_cfg['sample_batch_size']
         self.device = device
         self.fullfill = False
+        self.pc_shape = pointclouds_shape
         self.step = 0
 
         if model_cfg is None:
@@ -210,7 +211,7 @@ class Student(nn.Module):
 
     def batch_sampler(self):
         random_indices = torch.randint(low = 1, high = self.total_size -1, size=(self.batch_size,)).to(self.device)
-        data_pcs = self.pcs.reshape(-1,8192,5)
+        data_pcs = self.pcs.reshape(-1,self.pc_shape,5)
         data_obs = self.current_obs.reshape(-1,self.prio_shape)
         labels = self.labels.reshape(-1,self.actions_space)
         return data_pcs[random_indices], data_obs[random_indices], labels[random_indices]

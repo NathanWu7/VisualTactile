@@ -19,5 +19,5 @@ policy: # only works for MlpPolicy right now
 
   
 learn:
-  save_interval: 600 # check for potential saves every this many iterations
+  save_interval: 200 # check for potential saves every this many iterations
   max_iterations: 6500
