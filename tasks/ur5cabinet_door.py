@@ -588,8 +588,8 @@ class Ur5cabinet_door(BaseTask):
     def compute_contact_force(self):
         net_contact_force = gymtorch.wrap_tensor(self.net_contact_force_tensor).view(self.num_envs, 33, 3)
         # 计算总接触力
-        left_contact_force = net_contact_force[:, 13, :]
-        right_contact_force = net_contact_force[:, 21, :]
+        left_contact_force = net_contact_force[:, self.handles["hand_left"], :]
+        right_contact_force = net_contact_force[:, self.handles["hand_right"], :]
         self._contact_forces = torch.norm(left_contact_force-right_contact_force, dim=-1).unsqueeze(1)
 
 
