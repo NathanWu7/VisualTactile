@@ -9,7 +9,7 @@ PCDownSampleNum: 8192
 TDownSampleNum: 64
 
 rl_algo: "sac"
-rl_iter: 2000
+rl_iter: 10000
 
 policy: # only works for MlpPolicy right now
   # training params

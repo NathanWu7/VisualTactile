@@ -9,7 +9,7 @@ PCDownSampleNum: 8192
 TDownSampleNum: 64
 
 rl_algo: "sac"
-rl_iter: 4000
+rl_iter: 10000
 
 policy: # only works for MlpPolicy right now
   # training params
@@ -18,5 +18,5 @@ policy: # only works for MlpPolicy right now
   activation: elu # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
 
 learn:
-  save_interval: 600 # check for potential saves every this many iterations
+  save_interval: 200 # check for potential saves every this many iterations
   max_iterations: 6500

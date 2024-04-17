@@ -17,7 +17,7 @@ policy: # only works for MlpPolicy right now
   activation: elu # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
 
 student: # only works for MlpPolicy right now
-  pi_hid_sizes: [512, 512,256]
+  pi_hid_sizes: [512, 512,512]
   activation: elu # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
   
 learn:

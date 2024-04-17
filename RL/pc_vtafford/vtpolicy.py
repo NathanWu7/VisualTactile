@@ -254,7 +254,7 @@ class vtpolicy:
                 else :
                     self.pointCloudVisualizer.update(self.pcd)  
 
-            if update_step % 100 == 0:
+            if update_step % log_interval == 0:
                 torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model.pt'))
                 print("Save at:", update_step, " Iter:",iter, "  Loss: ", loss.item())
                 iter = iter + 1 if iter < 10 else 0

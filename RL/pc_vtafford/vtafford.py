@@ -82,7 +82,7 @@ class vtafford:
             self.pointCloudVisualizerInitialized = False
             self.pcd = o3d.geometry.PointCloud()
 
-    def run(self,num_learning_iterations=0,log_interval=1):
+    def run(self,num_learning_iterations=0,log_interval=100):
         current_obs = self.vec_env.reset()
 
         current_pcs = self.vec_env.get_pointcloud()
@@ -220,7 +220,7 @@ class vtafford:
                 #else:
 
                 #print(next_obs[:,])
-            if update_step % 100 == 0 and update_step != 0:
+            if update_step % log_interval == 0 and update_step != 0:
                 torch.save(self.TAN.state_dict(),os.path.join(self.model_dir,'TAN_model.pt') )
                 print("Save at:", update_step, "  loss: ",loss.item())
 
