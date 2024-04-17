@@ -51,7 +51,7 @@ python3 train.py --task ur5cabinet_door --test
 Tensorboard logdir :/run
 
 ### 1. RL 
-Modify this file :   cfg/task/ur5xxxx.py  <br>
+Modify this file :   cfg/task/ur5xxxx.yaml  <br>
   numEnvs : 512+                                         
   obs_type: ["oracle","contact_force"] <br>
 
@@ -59,9 +59,10 @@ Modify this file :   cfg/task/ur5xxxx.py  <br>
 python3 train.py --task ur5xxxx --algo sac --headless
 ```
 ### 2. VTA
-Modify this file :  cfg/task/ur5xxxx.py  <br>
+Modify this file :  cfg/task/ur5xxxx.yaml  <br>
   numEnvs : 16+
   obs_type: ["oracle","contact_force","pointcloud","tactile"]  <br>
+  rl_iter: 10000     -->  When RL model saved (iter)
   
 ```sh
 python3 train.py --task ur5xxxx --algo vta --headless
@@ -71,6 +72,7 @@ For testing:
 python3 train.py --task ur5xxxx --algo vta --test --headless
 ```
 ### 3. VTP
+Config file is the same as VTA
 ```sh
 python3 train.py --task ur5xxxx --algo vtp --headless
 ```
