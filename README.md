@@ -73,8 +73,8 @@ For testing:
 python3 train.py --task ur5xxxx --algo vta --test --headless
 ```
 ### 3. VTP
-sample_batch_size: 32 + <br>
-replay_size: 300 + <br>
+sample_batch_size: 32 + (sample from replay_size * numEnvs)<br>
+replay_size: 300 + (total data: replay_size * numEnvs, each step update -> numEnvs)<br>
 Other config files are the same as VTA  <br>
 ```sh
 python3 train.py --task ur5xxxx --algo vtp --headless
