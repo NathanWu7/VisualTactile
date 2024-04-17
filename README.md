@@ -53,16 +53,17 @@ Tensorboard logdir :/run
 ### 1. RL 
 Modify this file :   cfg/task/ur5xxxx.yaml  <br>
   numEnvs : 512+                                         
-  obs_type: ["oracle","contact_force"] <br>
+  obs_type: ["oracle"] <br>
 
 ```sh
 python3 train.py --task ur5xxxx --algo sac --headless
 ```
 ### 2. VTA
 Modify this file :  cfg/task/ur5xxxx.yaml  <br>
-  numEnvs : 16+
-  obs_type: ["oracle","contact_force","pointcloud","tactile"]  <br>
-  rl_iter: 10000     -->  When RL model saved (iter)
+  numEnvs : 16+  <br>
+  obs_type: ["oracle","pointcloud","tactile"]  <br>
+  rl_iter: 10000     -->  When RL model saved (iter)  <br>
+  max_iterations: 10000  <br>
   
 ```sh
 python3 train.py --task ur5xxxx --algo vta --headless
@@ -72,7 +73,9 @@ For testing:
 python3 train.py --task ur5xxxx --algo vta --test --headless
 ```
 ### 3. VTP
-Config file is the same as VTA
+sample_batch_size: 32 + <br>
+replay_size: 300 + <br>
+Other config files are the same as VTA  <br>
 ```sh
 python3 train.py --task ur5xxxx --algo vtp --headless
 ```
