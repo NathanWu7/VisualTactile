@@ -73,6 +73,7 @@ For algo modify this file:   cfg/train/vta/vta_ur5xxx.yaml  <br>
 ```sh
 python3 train.py --task ur5xxxx --algo vta --headless
 ```
+VTA test cannot run on headless model
 
 ### 3. VTP
 For algo modify this file:   cfg/train/vtp/vtp_ur5xxx.yaml    
