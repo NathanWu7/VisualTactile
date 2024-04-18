@@ -60,6 +60,11 @@ For algo modify this file:    cfg/train/sac/sac_ur5xxxx.yaml   <br>
 ```sh
 python3 train.py --task ur5xxxx --algo sac --headless
 ```
+For testing:
+```sh
+python3 train.py --task ur5xxxx --algo sac --headless --test
+```
+
 ### 2. VTA
 For env modify this file :  cfg/task/ur5xxxx.yaml  <br>
   numEnvs : 16+  <br>
@@ -73,7 +78,7 @@ For algo modify this file:   cfg/train/vta/vta_ur5xxx.yaml  <br>
 ```sh
 python3 train.py --task ur5xxxx --algo vta --headless
 ```
-VTA test cannot run on headless model
+VTA test cannot run under headless model
 
 ### 3. VTP
 For algo modify this file:   cfg/train/vtp/vtp_ur5xxx.yaml    
