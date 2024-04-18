@@ -57,7 +57,7 @@ class vtafford:
         self.learning_rate = 0.0001
 
         self.log_dir = log_dir
-        self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
+        self.writer = SummaryWriter(log_dir=self.model_dir, flush_secs=10)
 
         self.actor_critic =  MLPActorCritic(self.origin_shape, vec_env.action_space, **ac_kwargs).to(self.device)
 

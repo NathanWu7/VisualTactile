@@ -115,7 +115,7 @@ class SAC:
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
         self.print_log = print_log
-        self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
+        self.writer = SummaryWriter(log_dir=self.model_dir, flush_secs=10)
         self.tot_timesteps = 0
         self.tot_time = 0
         self.is_testing = is_testing

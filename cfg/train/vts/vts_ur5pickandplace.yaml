@@ -1,0 +1,29 @@
+seed: -1
+torch_deterministic: True
+
+origin_shape: 31 #env origin
+proprioception_shape: 21  #proprio 
+encoded_observation_shape: 37 # encoded = proprio + latent
+latent_shape: 16
+PCDownSampleNum: 8192
+TDownSampleNum: 64
+
+rl_algo: "sac"
+rl_iter: 10000
+
+policy: # only works for MlpPolicy right now
+  hidden_nodes: 512
+  hidden_layer: 3
+  activation: elu # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
+
+student: # only works for MlpPolicy right now
+  pi_hid_sizes: [512, 512,512]
+  activation: elu # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
+  sample_batch_size: 128
+  replay_size: 500
+  num_gaussians: 8
+  
+learn:
+  lr: 0.001
+  save_interval: 200 # check for potential saves every this many iterations
+  max_iterations: 800000 

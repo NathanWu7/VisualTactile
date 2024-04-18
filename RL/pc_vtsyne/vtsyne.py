@@ -1,5 +1,4 @@
-from RL.pc_vtafford.pcmodule import Network
-from RL.pc_vtafford.rlmodule import Student
+from RL.pc_vtsyne.module import Student
 from RL.sac import MLPActorCritic
 
 from torch.utils.tensorboard import SummaryWriter
@@ -16,7 +15,7 @@ import time
 import open3d as o3d
 
 
-class vtpolicy:
+class vtsyne:
     def __init__(self,
                  vec_env,
                  cfg_train,
@@ -71,10 +70,6 @@ class vtpolicy:
         
         #self.encoded_obs = torch.zeros((self.vec_env.num_envs, self.input_shape), dtype=torch.float, device=self.device)
 
-        self.TAN = Network(4, 16).to(device)
-        self.TAN.load_state_dict(torch.load(os.path.join(self.model_dir,'TAN_model.pt')))
-        self.TAN.eval()
-
         self.optimizer = optim.Adam([
 	        {'params': self.student_actor.parameters(), 'lr': self.learning_rate,}
         	])
@@ -102,7 +97,7 @@ class vtpolicy:
         update_step = 1
         iter = 0
         all_indices = set(torch.arange(pointclouds.size(0)).numpy())
-        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,5),device = self.device)
+        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,4),device = self.device)
         counter = torch.zeros((self.vec_env.num_envs), device = self.device)
         action_labels = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
         
@@ -110,7 +105,7 @@ class vtpolicy:
         if self.is_testing:
             all_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
             success_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
-            self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir,'policy_model.pt')))
+            self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir,'vts_policy_model.pt')))
             self.student_actor.eval()
             while True:
                 with torch.no_grad():
@@ -133,18 +128,12 @@ class vtpolicy:
                         #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
 
                         pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
-                        pcs[:,:,3] = 1 
-                        pcs[:,-self.tactile_shape:,4] = 1
-                                
-                        update_step += 1            
-                        output = self.TAN(pcs[:,:,:4])  
+                        pcs[:,-self.tactile_shape:,3] = 1     
 
                     else:
                         pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
-                        pcs[:,:,3] = 1 
-                        output = self.TAN(pcs[:,:,:4])
+                        pcs[:,:,3] = 0
 
-                    pcs[:,:,3] = output.detach()
                     mu, sigma, pi = self.student_actor.act(pcs,current_obs[:,:self.prop_shape])  
                     action_pre = self.student_actor.mdn_sample(mu, sigma, pi)
                     #action_pre = self.actor_critic.act_inference(current_obs)  
@@ -162,12 +151,12 @@ class vtpolicy:
                     if self.pc_debug:
                         test = pcs[0, :, :3].cpu().numpy()
                         #print(test.shape)
-                        color = output[0].unsqueeze(1).detach().cpu().numpy()
-                        color = (color - min(color)) / (max(color)-min(color))
-                        colors_blue = o3d.utility.Vector3dVector( color * [[1,0,0]])
+                        # color = output[0].unsqueeze(1).detach().cpu().numpy()
+                        # color = (color - min(color)) / (max(color)-min(color))
+                        # colors_blue = o3d.utility.Vector3dVector( color * [[1,0,0]])
                         #print(color * [[0,0,1]])
                         self.pcd.points = o3d.utility.Vector3dVector(list(test))
-                        self.pcd.colors = o3d.utility.Vector3dVector(list(colors_blue))
+                        #self.pcd.colors = o3d.utility.Vector3dVector(list(colors_blue))
 
                         if self.pointCloudVisualizerInitialized == False :
                             self.pointCloudVisualizer.add_geometry(self.pcd)
@@ -203,17 +192,14 @@ class vtpolicy:
                     #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
 
                     pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
-                    pcs[:,:,3] = 1 
-                    pcs[:,-self.tactile_shape:,4] = 1
+                    pcs[:,-self.tactile_shape:,3] = 1
                             
-                    output = self.TAN(pcs[:,:,:4])  
 
                 else:
                     pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
-                    pcs[:,:,3] = 1 
-                    output = self.TAN(pcs[:,:,:4])
+                    pcs[:,:,3] = 0
+
                 
-                pcs[:,:,3] = output.detach()
                 
                 # print("current_obs: ",current_obs)
 
@@ -245,13 +231,13 @@ class vtpolicy:
 
             if self.pc_debug:
                 test = pcs[1, :, :3].cpu().numpy()
-                #print(test.shape)
-                color = output[1].unsqueeze(1).detach().cpu().numpy()
-                color = (color - min(color)) / (max(color)-min(color))
-                colors_blue = o3d.utility.Vector3dVector( color * [[1,0,0]])
+                # #print(test.shape)
+                # color = output[1].unsqueeze(1).detach().cpu().numpy()
+                # color = (color - min(color)) / (max(color)-min(color))
+                # colors_blue = o3d.utility.Vector3dVector( color * [[1,0,0]])
                 #print(color * [[0,0,1]])
                 self.pcd.points = o3d.utility.Vector3dVector(list(test))
-                self.pcd.colors = o3d.utility.Vector3dVector(list(colors_blue))
+                #self.pcd.colors = o3d.utility.Vector3dVector(list(colors_blue))
 
                 if self.pointCloudVisualizerInitialized == False :
                     self.pointCloudVisualizer.add_geometry(self.pcd)
@@ -260,7 +246,7 @@ class vtpolicy:
                     self.pointCloudVisualizer.update(self.pcd)  
 
             if update_step % log_interval == 0:
-                torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model.pt'))
+                torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'vts_policy_model.pt'))
                 print("Save at:", update_step, " Iter:",iter, "  Loss: ", loss.item())
                 iter = iter + 1 if iter < 10 else 0
 

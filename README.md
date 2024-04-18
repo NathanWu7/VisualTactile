@@ -93,3 +93,15 @@ For testing:
 ```sh
 python3 train.py --task ur5xxxx --algo vtp --test --headless
 ```
+
+## Comparision
+### 1. VTS
+For algo modify this file:   cfg/train/vts/vts_ur5xxx.yaml   <br>
+Parameters are the same as vtp <br>
+After training RL in step 1 <br>
+```sh
+python3 train.py --task ur5xxxx --algo vts --headless
+```
+For testing
+```sh
+python3 train.py --task ur5xxxx --algo vts --headless --test
