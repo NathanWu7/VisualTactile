@@ -51,17 +51,20 @@ python3 train.py --task ur5cabinet_door --test
 Tensorboard logdir :/run
 
 ### 1. RL 
-Modify this file :   cfg/task/ur5xxxx.yaml  <br>
-  numEnvs : 512+                                         
+For env  modify this file :   cfg/task/ur5xxxx.yaml  <br>
+  numEnvs : 512+        <br>                                   
   obs_type: ["oracle"] <br>
-
+For algo modify this file:    cfg/train/sac/sac_ur5xxxx.yaml   <br>
+  load_iter: when rl model saved   <br>
 ```sh
 python3 train.py --task ur5xxxx --algo sac --headless
 ```
 ### 2. VTA
-Modify this file :  cfg/task/ur5xxxx.yaml  <br>
+For env modify this file :  cfg/task/ur5xxxx.yaml  <br>
   numEnvs : 16+  <br>
   obs_type: ["oracle","pointcloud","tactile"]  <br>
+For algo modify this file:   cfg/train/vta/vta_ur5xxx.yaml  <br>   
+  rl_algo: "sac"     --> Choose algorithm <br>
   rl_iter: 10000     -->  When RL model saved (iter)  <br>
   max_iterations: 10000  <br>
   
@@ -70,8 +73,10 @@ python3 train.py --task ur5xxxx --algo vta --headless
 ```
 
 ### 3. VTP
-sample_batch_size: 32 + (sample from replay_size * numEnvs)<br>
-replay_size: 300 + (total data: replay_size * numEnvs, each step update -> numEnvs)<br>
+For algo modify this file:   cfg/train/vtp/vtp_ur5xxx.yaml  <br>   
+  sample_batch_size: 32 + (sample from replay_size * numEnvs)<br>
+  replay_size: 300 + (total data: replay_size * numEnvs, each step update -> numEnvs)<br>
+  lr: 0.001   -->  learning rate   <br>
 Other config files are the same as VTA  <br>
 ```sh
 python3 train.py --task ur5xxxx --algo vtp --headless
