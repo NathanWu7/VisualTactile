@@ -68,10 +68,7 @@ Modify this file :  cfg/task/ur5xxxx.yaml  <br>
 ```sh
 python3 train.py --task ur5xxxx --algo vta --headless
 ```
-For testing:
-```sh
-python3 train.py --task ur5xxxx --algo vta --test --headless
-```
+
 ### 3. VTP
 sample_batch_size: 32 + (sample from replay_size * numEnvs)<br>
 replay_size: 300 + (total data: replay_size * numEnvs, each step update -> numEnvs)<br>
