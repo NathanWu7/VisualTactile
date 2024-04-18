@@ -34,7 +34,6 @@ class vtpolicy:
         self.state_space = vec_env.state_space
         self.device = device
         self.cfg_train = cfg_train
-        self.num_transitions_per_env = 4
 
         self.pointclouds_shape = self.cfg_train["PCDownSampleNum"]
         self.tactile_shape = self.cfg_train["TDownSampleNum"] * 2
@@ -51,9 +50,10 @@ class vtpolicy:
 
         self.model_cfg = self.cfg_train["policy"]
         self.student_cfg = self.cfg_train["student"]
+        self.learning_cfg = self.cfg_train["learn"]
         ac_kwargs = dict(hidden_sizes=[self.model_cfg["hidden_nodes"]]* self.model_cfg["hidden_layer"])
 
-        self.learning_rate = 0.001
+        self.learning_rate = self.learning_cfg["lr"]
         self.dagger_iter = 11
 
         self.log_dir = log_dir
@@ -108,7 +108,8 @@ class vtpolicy:
         
 
         if self.is_testing:
-
+            all_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
+            success_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
             self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir,'policy_model.pt')))
             self.student_actor.eval()
             while True:
@@ -149,8 +150,13 @@ class vtpolicy:
                     #action_pre = self.actor_critic.act_inference(current_obs)  
                     #action_pre = self.student_actor(pcs,current_obs[:,:self.prop_shape])   
 
-                    next_obs, rews, dones, infos = self.vec_env.step(action_pre)
-
+                    next_obs, rews, dones, successes,infos = self.vec_env.step(action_pre)
+                    success_cases += successes
+                    all_cases += dones
+                    if sum(all_cases) > 0:
+                        cases = int(sum(all_cases).item())
+                        succes_rate = round((sum(success_cases) / sum(all_cases)).item(),4)
+                        print("success_rate: ", succes_rate,"  in {} cases.".format(cases))
                     next_pointcloud = self.vec_env.get_pointcloud()  
 
                     if self.pc_debug:
@@ -233,8 +239,7 @@ class vtpolicy:
                 update_step += 1
                 self.writer.add_scalar('Loss/Imitation', loss,update_step)      
 
-            next_obs, rews, dones, infos = self.vec_env.step(action_mix)
-
+            next_obs, rews, dones, successes, infos = self.vec_env.step(action_mix)
             next_pointcloud = self.vec_env.get_pointcloud()
             #counter[dones==1] = 0  
 
@@ -258,6 +263,7 @@ class vtpolicy:
                 torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model.pt'))
                 print("Save at:", update_step, " Iter:",iter, "  Loss: ", loss.item())
                 iter = iter + 1 if iter < 10 else 0
+
             
             current_obs = next_obs
             current_pcs = next_pointcloud

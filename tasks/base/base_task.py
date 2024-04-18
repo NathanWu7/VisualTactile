@@ -74,6 +74,8 @@ class BaseTask():
             (self.num_envs, self.pointcloud_size,3), device=self.device, dtype=torch.float)
         self.rew_buf = torch.zeros(
             self.num_envs, device=self.device, dtype=torch.float)
+        self.success_buf = torch.zeros(
+            self.num_envs, device=self.device, dtype=torch.long)
         self.reset_buf = torch.ones(
             self.num_envs, device=self.device, dtype=torch.long)
         self.progress_buf = torch.zeros(

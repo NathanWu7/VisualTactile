@@ -52,13 +52,16 @@ class PPO:
         self.model_cfg = self.cfg_train["policy"]
         self.num_transitions_per_env=learn_cfg["nsteps"]
         self.learning_rate=learn_cfg["optim_stepsize"]
-        self.rl_model_path = self.cfg_train["rl_model_path"]
+
         self.env_shape = self.cfg_train["env_shape"]
         self.prop_shape = self.cfg_train["proprioception_shape"]
         self.total_shape = self.env_shape + self.prop_shape
+
+        self.iter = cfg_train["load_iter"]
         #print(self.total_shape)
         # PPO components
         self.vec_env = vec_env
+        self.task_name = vec_env.task_name
         self.actor_critic = ActorCritic(self.total_shape, self.state_space.shape, self.action_space.shape,
                                                self.init_noise_std, self.model_cfg, asymmetric=asymmetric) #TODO debug observation
         self.actor_critic.to(self.device)
@@ -80,13 +83,16 @@ class PPO:
 
         # Log
         self.log_dir = log_dir
+        self.model_dir = os.path.join(self.log_dir,self.task_name) 
         self.print_log = print_log
         self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
         self.tot_timesteps = 0
         self.tot_time = 0
         self.is_testing = False
         self.current_learning_iteration = 0
-
+        self.model_dir = os.path.join(log_dir,self.task_name) 
+        if not os.path.exists(self.model_dir):
+            os.makedirs(self.model_dir)
         self.apply_reset = apply_reset
 
     def test(self, path):
@@ -106,7 +112,7 @@ class PPO:
         current_states = self.vec_env.get_state()
 
         if self.is_testing:
-            self.test(self.rl_model_path)
+            self.test(os.path.join(self.model_dir,'sac_model_{}.pt'.format(self.iter)))
             while True:
                 with torch.no_grad():
                     if self.apply_reset:
@@ -180,9 +186,9 @@ class PPO:
                 if self.print_log:
                     self.log(locals())
                 if it % log_interval == 0:
-                    self.save(os.path.join(self.log_dir, 'test_model_{}.pt'.format(it)))
+                    self.save(os.path.join(self.model_dir,'ppo_model_{}.pt'.format(it)))
                 ep_infos.clear()
-            self.save(os.path.join(self.log_dir, 'test_model_{}.pt'.format(num_learning_iterations)))
+            self.save(os.path.join(self.model_dir, 'ppo_model_{}.pt'.format(num_learning_iterations)))
 
     def log(self, locs, width=80, pad=35):
         self.tot_timesteps += self.num_transitions_per_env * self.vec_env.num_envs

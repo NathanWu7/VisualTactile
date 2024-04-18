@@ -144,8 +144,11 @@ class SAC:
         """
         current_obs = self.vec_env.reset()
         current_states = self.vec_env.get_state()
+        
 
         if self.is_testing:
+            all_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
+            success_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
             self.test(os.path.join(self.model_dir,'sac_model_{}.pt'.format(self.iter)))
             while True:
                 with torch.no_grad():
@@ -154,7 +157,15 @@ class SAC:
                     # Compute the action
                     actions = self.actor_critic.act(current_obs,deterministic =True)
                     # Step the vec_environment
-                    next_obs, rews, dones, infos = self.vec_env.step(actions)
+                    next_obs, rews, dones, successes,infos = self.vec_env.step(actions)
+                    #print(successes)
+                    #print(dones.shape)
+                    success_cases += successes
+                    all_cases += dones
+                    if sum(all_cases) > 0:
+                        cases = int(sum(all_cases).item())
+                        succes_rate = round((sum(success_cases) / sum(all_cases)).item(),4)
+                        print("success_rate: ", succes_rate,"  in {} cases.".format(cases))
                     current_obs.copy_(next_obs)
         else:
             rewbuffer = deque(maxlen=100)
@@ -177,7 +188,7 @@ class SAC:
                     # Compute the action
                     actions = self.actor_critic.act(current_obs)
                     # Step the vec_environment
-                    next_obs, rews, dones, infos = self.vec_env.step(actions)
+                    next_obs, rews, dones, successes, infos = self.vec_env.step(actions)
                     rews *= self.reward_scale
                     next_states = self.vec_env.get_state()
                     # Record the transition

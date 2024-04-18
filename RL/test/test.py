@@ -33,6 +33,7 @@ class TEST:
                 # print("f_y",current_obs[:,8])
 
                 # print("1_x",current_obs[:,24])
+
                 # print("2_x",current_obs[:,25])
                 # print("3_x",current_obs[:,26])
                 # print("4_x",current_obs[:,27])

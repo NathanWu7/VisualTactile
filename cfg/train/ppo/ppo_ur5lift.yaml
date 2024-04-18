@@ -3,11 +3,10 @@ torch_deterministic: True
 
 env_shape: 7
 proprioception_shape: 21
+load_iter: 2800
 
 clip_observations: 5.0
 clip_actions: 1.0
-rl_model_path: "/home/nathan/VisualTactile/run/test_model_4200.pt"
-model_dir: 
 
 policy: # only works for MlpPolicy right now
   pi_hid_sizes: [512, 512, 256]
@@ -32,7 +31,7 @@ learn:
   optim_stepsize: 1.e-4 # 3e-4 is default for single agent training with constant schedule
   schedule: adaptive # could be adaptive or linear or fixed
   desired_kl: 0.016
-  gamma: 0.998
+  gamma: 0.99
   lam: 0.95
   init_noise_std: 1.0
 

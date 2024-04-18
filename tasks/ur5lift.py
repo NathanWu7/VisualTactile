@@ -144,9 +144,6 @@ class Ur5lift(BaseTask):
         lower = gymapi.Vec3(0, 0, 0)
         upper = gymapi.Vec3(spacing, spacing, spacing)
 
-        #camera and pointcloud
-        self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
-
         #default pos
         self.default_dof_pos = to_torch(
             [-1.57, 0, -1.57, 0, 1.57, 0, 
@@ -518,13 +515,13 @@ class Ur5lift(BaseTask):
 
 
     def compute_reward(self):
-        self.rew_buf[:], self.reset_buf[:], self.successes[:] = compute_reach_reward(   self.reset_buf,
+        self.rew_buf[:], self.reset_buf[:], self.success_buf[:] = compute_reach_reward(   self.reset_buf,
                                                                         self.progress_buf,
                                                                         self.states,
                                                                         self.max_episode_length)
 
     def compute_observations(self):
-        self._refresh() #7 3      #4           #6                          #1            #7
+        self._refresh() #7    3      #4           #3           #3               #1            #7
         obs =    ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat"]
         states = ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat"]
         #print(self.states["force"])
@@ -568,7 +565,7 @@ class Ur5lift(BaseTask):
         # clear up desired buffer states
         self.reset_buf[env_ids] = 0
         self.progress_buf[env_ids] = 0
-        self.successes[env_ids] = 0
+        self.success_buf[env_ids] = 0
 
         self._refresh()
         # refresh new observation after reset
@@ -890,7 +887,7 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     success_buf = cubeA_reached
     force[force > 200] = 200
 
-    rew_buf = - 0.2 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) + cubeA_lifted * cubeA_height \
+    rew_buf = - 0.3 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) + cubeA_lifted * cubeA_height * 2\
                 + cubeA_reached * 100 \
                 + force * 0.0005
     

@@ -5,7 +5,7 @@ clip_actions: 1.0
 
 env_shape: 10
 proprioception_shape: 21
-load_iter: 3200
+load_iter: 10000
 
 learn:
   test: False

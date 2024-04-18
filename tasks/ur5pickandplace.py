@@ -888,7 +888,7 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     force[force > 200] = 200
 
     rew_buf = - 0.4 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) + cubeA_lifted * cubeA_height * 5\
-                + cubeA_picked * (1-torch.tanh(d_g * 2)) \
+                + cubeA_picked * (1-torch.tanh(d_g * 2)) * 2 \
                 + force * 0.0005 \
                 + cubeA_reached * 300
     

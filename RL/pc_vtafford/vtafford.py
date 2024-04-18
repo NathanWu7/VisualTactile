@@ -110,7 +110,7 @@ class vtafford:
                     zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
                     touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
 
-                    next_obs, rews, dones, infos = self.vec_env.step(actions)
+                    next_obs, rews, dones, successes, infos = self.vec_env.step(actions)
                     next_pointcloud = self.vec_env.get_pointcloud()  
 
                     
@@ -119,6 +119,7 @@ class vtafford:
                         tactile_part = pointclouds[:,self.pointclouds_shape:,:]
                         is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
                         pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
+                        #print(pointclouds.shape)
                         #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
                         pcs = pointclouds[:, -self.pointclouds_shape:, :]
                         labels = pcs[:,:,3].clone()
@@ -165,7 +166,7 @@ class vtafford:
             
             touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
 
-            next_obs, rews, dones, infos = self.vec_env.step(actions)
+            next_obs, rews, dones, successes, infos = self.vec_env.step(actions)
 
             next_pointcloud = self.vec_env.get_pointcloud()  
             #print("vision:", torch.mean(next_pointcloud[:,:self.pointclouds_shape],dim=1))
