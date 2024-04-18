@@ -4,7 +4,11 @@
 | --- | --- |
 | ur5lift | 4/18 |
 
-## ur5lift 
+##
+
+---
+
+## ur5lift
 
 1. RL
   
@@ -15,6 +19,12 @@ cfg/task/ur5lift.yaml
     obs_type: [["oracle"] ]
 
 python3 train.py --task ur5lift --algo sac --headless
+
+cfg/train/sac/sac_ur5lift.yaml
+    load_iter: 4000
+
+python3 train.py --task ur5lift--algo sac --headless --test
+    success_rate:  0.9862   in 1086 cases.
 ```
 
 2. VTA
