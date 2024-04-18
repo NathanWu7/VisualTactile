@@ -57,10 +57,11 @@ class vtpolicy:
         self.dagger_iter = 11
 
         self.log_dir = log_dir
-        self.writer = SummaryWriter(log_dir=self.model_dir, flush_secs=10)
+
         self.model_dir = os.path.join(log_dir,self.task_name) 
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
+        self.writer = SummaryWriter(log_dir=self.model_dir, flush_secs=10)
         self.actor_critic =  MLPActorCritic(self.origin_shape, vec_env.action_space, **ac_kwargs).to(self.device)
         self.student_actor = Student(self.input_shape, self.pointclouds_shape, self.latent_shape, self.action_space.shape, self.vec_env.num_envs, self.device, self.student_cfg)
 
