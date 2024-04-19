@@ -1,6 +1,6 @@
 env:
   taskname: "ur5lift"
-  numEnvs: 16
+  numEnvs: 4
   numStates: 28 #
   sim_device: "cuda:0"
   compute_device_id: 0

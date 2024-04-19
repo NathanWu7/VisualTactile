@@ -1,27 +1,43 @@
-seed: -1
+seed: 42
 torch_deterministic: True
 
-origin_shape: 31 #env origin
 proprioception_shape: 21  #proprio 
-encoded_observation_shape: 37 # encoded = proprio + latent
-latent_shape: 16
-
+PCDownSampleNum: 8192
+TDownSampleNum: 64
 
 student_model_path: "/home/nathan/VisualTactile/run/student_model.pt"
 rl_model_path: "/home/nathan/VisualTactile/run/test_model_600.pt"
 adapter_model_path: "/home/nathan/VisualTactile/run/adapter_model.pt"
 
 policy: # only works for MlpPolicy right now
-  pi_hid_sizes: [512, 512, 256]
-  vf_hid_sizes: [512, 512, 256]
+  pi_hid_sizes: [512, 512, 512]
+  vf_hid_sizes: [512, 512, 512]
+  pc_latent_size: 16
   activation: elu # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
 
   
 learn:
-  test: True
+  test: False
   resume: 0
   save_interval: 400 # check for potential saves every this many iterations
   print_log: True
-
+  tan_lr: 0.001
   # rollout params
-  max_iterations: 80000
+  max_iterations: 5000
+
+  # training params
+  cliprange: 0.2
+  ent_coef: 0
+  nsteps: 20
+  noptepochs: 10
+  nminibatches: 4 # this is per agent
+  max_grad_norm: 1
+  optim_stepsize: 1.e-4 # 3e-4 is default for single agent training with constant schedule
+  schedule: adaptive # could be adaptive or linear or fixed
+  desired_kl: 0.016
+  gamma: 0.99
+  lam: 0.95
+  init_noise_std: 1.0
+
+  log_interval: 1
+  asymmetric: False

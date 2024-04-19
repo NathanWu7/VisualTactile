@@ -66,6 +66,7 @@ class vtpolicy:
         self.student_actor = Student(self.input_shape, self.pointclouds_shape, self.latent_shape, self.action_space.shape, self.vec_env.num_envs, self.device, self.student_cfg)
         self.actor_critic.to(self.device)
         self.student_actor.to(self.device)
+        
         print("##################")
         print("RL_model: ", os.path.join(self.model_dir,self.rl_algo+'_model_{}.pt'.format(self.rl_iter)))
         print()

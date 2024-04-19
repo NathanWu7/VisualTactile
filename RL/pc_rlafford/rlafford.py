@@ -15,6 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from RL.pc_rlafford.storage import RolloutStorage
 from RL.pc_rlafford.module import ActorCritic
+from RL.pc_vtafford.pcmodule import Network
 
 import copy
 
@@ -28,7 +29,6 @@ class rlafford:
                  is_testing=False,
                  print_log=True,
                  apply_reset=False,
-                 asymmetric=False
                  ):
 
         if not isinstance(vec_env.observation_space, Space):
@@ -44,7 +44,6 @@ class rlafford:
         self.cfg_train = copy.deepcopy(cfg_train)
         learn_cfg = self.cfg_train["learn"]
         self.device = device
-        self.asymmetric = asymmetric
         self.desired_kl = learn_cfg.get("desired_kl", None)
         self.schedule = learn_cfg.get("schedule", "fixed")
         self.step_size = learn_cfg["optim_stepsize"]
@@ -52,23 +51,36 @@ class rlafford:
         self.model_cfg = self.cfg_train["policy"]
         self.num_transitions_per_env=learn_cfg["nsteps"]
         self.learning_rate=learn_cfg["optim_stepsize"]
+        self.TAN_lr = learn_cfg["tan_lr"]
 
-        self.env_shape = self.cfg_train["env_shape"]
+        self.pc_latent_shape = self.model_cfg['pc_latent_size']
+        self.pointclouds_shape = self.cfg_train["PCDownSampleNum"]
+        self.tactile_shape = self.cfg_train["TDownSampleNum"] * 2
         self.prop_shape = self.cfg_train["proprioception_shape"]
-        self.total_shape = self.env_shape + self.prop_shape
+        self.mpo_shape = 4 #points 3 affordence map 1
+        self.total_input_shape = self.pc_latent_shape + self.prop_shape + self.mpo_shape
 
-        self.iter = cfg_train["load_iter"]
+        #self.iter = cfg_train["load_iter"]
         #print(self.total_shape)
         # PPO components
         self.vec_env = vec_env
         self.task_name = vec_env.task_name
-        self.actor_critic = ActorCritic(self.total_shape, self.state_space.shape, self.action_space.shape,
-                                               self.init_noise_std, self.model_cfg, asymmetric=asymmetric) #TODO debug observation
+        self.actor_critic = ActorCritic(self.total_input_shape, self.action_space.shape,
+                                               self.init_noise_std, self.model_cfg) #TODO debug observation
         self.actor_critic.to(self.device)
-        self.storage = RolloutStorage(self.vec_env.num_envs, self.num_transitions_per_env, self.total_shape,
-                                      self.state_space.shape, self.action_space.shape, self.device, sampler)
+        self.storage = RolloutStorage(self.vec_env.num_envs, self.num_transitions_per_env, self.prop_shape,
+                                      self.pointclouds_shape, self.mpo_shape, self.action_space.shape, self.device, sampler)
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=self.learning_rate)
 
+
+        self.TAN = Network(4, 16).to(device)
+        #self.TAN.load_state_dict(torch.load(os.path.join(self.model_dir,'TAN_model.pt')))
+        #self.TAN.eval()
+
+        self.TAN_optimizer = optim.Adam([
+	        {'params': self.TAN.parameters(), 'lr': self.learning_rate,}
+        	])
+        self.TAN_criterion = nn.BCELoss()
         # PPO parameters
         self.clip_param = learn_cfg["cliprange"]
         self.num_learning_epochs = learn_cfg["noptepochs"]
@@ -83,7 +95,6 @@ class rlafford:
 
         # Log
         self.log_dir = log_dir
-        self.model_dir = os.path.join(self.log_dir,self.task_name) 
         self.print_log = print_log
         self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
         self.tot_timesteps = 0
@@ -107,20 +118,41 @@ class rlafford:
     def save(self, path):
         torch.save(self.actor_critic.state_dict(), path)
 
+    def get_labeled_pcs(current_pcs, current_tactiles):
+        is_nonzero = (current_tactiles != 0).any(dim=2)
+        
+        current_tactiles[:,:,3][is_nonzero] = 1
+        pcs_labeled = torch.cat(current_pcs, current_tactiles, dim=1)
+        return pcs_labeled
+    
     def run(self, num_learning_iterations, log_interval=1):
         current_obs = self.vec_env.reset()
-        current_states = self.vec_env.get_state()
+
+        current_pcs_all = self.vec_env.get_pointcloud()
+
+        current_pcs = torch.zeros((self.vec_env.num_envs, self.pointclouds_shape, 4), device = self.device) 
+        current_pcs[:,:,0:3] = current_pcs_all[:,:self.pointclouds_shape,:]
+
+        current_tactiles = torch.zeros((self.vec_env.num_envs, self.tactile_shape, 4), device = self.device) 
+        current_tactiles[:,:,0:3] = current_pcs_all[:,self.pointclouds_shape:,:]  #(num_envs, tactile_shape, 3)
+
+        current_prios = current_obs[:,:self.prop_shape]
+        
+        all_indices = set(torch.arange(self.vec_env.num_envs).numpy())
+
+        current_mpos = torch.zeros((self.vec_env.num_envs, 4), device = self.device) 
 
         if self.is_testing:
-            self.test(os.path.join(self.model_dir,'sac_model_{}.pt'.format(self.iter)))
-            while True:
-                with torch.no_grad():
-                    if self.apply_reset:
-                        current_obs = self.vec_env.reset()
-                    # Compute the action
-                    actions = self.actor_critic.act_inference(current_obs)
-                    next_obs, rews, dones, infos = self.vec_env.step(actions)
-                    current_obs.copy_(next_obs)
+            pass
+            # self.test(os.path.join(self.model_dir,'sac_model_{}.pt'.format(self.iter)))
+            # while True:
+            #     with torch.no_grad():
+            #         if self.apply_reset:
+            #             current_obs = self.vec_env.reset()
+            #         # Compute the action
+            #         actions = self.actor_critic.act_inference(current_obs)
+            #         next_obs, rews, dones, infos = self.vec_env.step(actions)
+            #         current_obs.copy_(next_obs)
         else:
             rewbuffer = deque(maxlen=100)
             lenbuffer = deque(maxlen=100)
@@ -138,19 +170,64 @@ class rlafford:
                 for _ in range(self.num_transitions_per_env):
                     if self.apply_reset:
                         current_obs = self.vec_env.reset()
-                        current_states = self.vec_env.get_state()
-                        
+
+                        current_pcs_all = self.vec_env.get_pointcloud()
+
+                        current_pcs[:,:,0:3] = current_pcs_all[:,:self.pointclouds_shape,:]
+                        current_tactiles[:,:,0:3] = current_pcs_all[:,self.pointclouds_shape:,:]
+
+                        current_prios = current_obs[:,:self.prop_shape]
+
+                    current_pcs[:,:,0:3] = current_pcs_all[:,:self.pointclouds_shape,:]
+                    current_tactiles[:,:,0:3] = current_pcs_all[:,self.pointclouds_shape:,:]
+                    current_prios = current_obs[:,:self.prop_shape]
+
+                    is_zero = torch.all(current_tactiles == 0, dim=-1)
+                    num_zero_points = torch.sum(is_zero, dim=-1)
+                    zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
+                    touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
+
+                    if len(touch_indices) > 0:
+                        pcs_labeled = self.get_labeled_pcs(current_pcs, current_tactiles)
+
+                        #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
+                        current_pcs[touch_indices,:,:] = pcs_labeled[touch_indices, -self.pointclouds_shape:, :]
+                        labels = current_pcs[:,:,3].clone()
+
+                        current_pcs[:,:,3] = 1 
+                        output = self.TAN(current_pcs)  
+                        # print("output:", output)
+                        #print("label:", label)
+                        loss = self.TAN_criterion(output[touch_indices,:],labels[touch_indices,:])
+                        #print(loss)
+
+                        self.TAN_optimizer.zero_grad()
+                        loss.backward()
+                        self.TAN_optimizer.step()       
+                        self.writer.add_scalar('Loss/pc', loss,it)      
+                    else:
+                        current_pcs[:,:,3] = 1 
+                        output = self.TAN(current_pcs)
+
+                    current_pcs[:,:,3] = output.detach()
+
+                    top_values, top_indices = torch.topk(output.detach(), 1, dim=1)
+                    current_mpos = torch.gather(current_pcs, 1, top_indices.unsqueeze(-1).expand(-1, -1, current_pcs.size(-1))).squeeze(1)
+
                     # Compute the action
-                    actions, actions_log_prob, values, mu, sigma = self.actor_critic.act(current_obs, current_states)
+                    actions, actions_log_prob, values, mu, sigma = self.actor_critic.act(current_prios, current_pcs, current_mpos)
                     # Step the vec_environment
-                    next_obs, rews, dones, infos = self.vec_env.step(actions)
-                    next_states = self.vec_env.get_state()
+                    next_obs, rews, dones,successes, infos = self.vec_env.step(actions)
+                    rews += (current_mpos[:,3]-1) * 0.2
+
+                    next_pcs = self.vec_env.get_pointcloud()
+
                     # pcs = next_states[:,next_obs.size(1):]#.view(self.vec_env.num_envs,1024,3)
                     # print(pcs.size())
                     # Record the transition
-                    self.storage.add_transitions(current_obs, current_states, actions, rews, dones, values, actions_log_prob, mu, sigma)
+                    self.storage.add_transitions(current_prios, current_pcs, current_mpos, actions, rews, dones, values, actions_log_prob, mu, sigma)
+                    current_pcs_all.copy_(next_pcs)
                     current_obs.copy_(next_obs)
-                    current_states.copy_(next_states)
                     # Book keeping
                     ep_infos.append(infos)
 
@@ -170,7 +247,7 @@ class rlafford:
                     rewbuffer.extend(reward_sum)
                     lenbuffer.extend(episode_length)
 
-                _, _, last_values, _, _ = self.actor_critic.act(current_obs, current_states)
+                _, _, last_values, _, _ = self.actor_critic.act(current_prios, current_pcs, current_mpos)
                 stop = time.time()
                 collection_time = stop - start
 
@@ -186,9 +263,9 @@ class rlafford:
                 if self.print_log:
                     self.log(locals())
                 if it % log_interval == 0:
-                    self.save(os.path.join(self.model_dir,'ppo_model_{}.pt'.format(it)))
+                    self.save(os.path.join(self.model_dir,'rla_model_{}.pt'.format(it)))
                 ep_infos.clear()
-            self.save(os.path.join(self.model_dir, 'ppo_model_{}.pt'.format(num_learning_iterations)))
+            self.save(os.path.join(self.model_dir, 'rla_model_{}.pt'.format(num_learning_iterations)))
 
     def log(self, locs, width=80, pad=35):
         self.tot_timesteps += self.num_transitions_per_env * self.vec_env.num_envs
@@ -265,9 +342,11 @@ class rlafford:
 
             for indices in batch:
  
-                obs_batch = self.storage.observations.view(-1, *self.storage.observations.size()[2:])[indices]
-                # if self.asymmetric:
-                states_batch = self.storage.states.view(-1, *self.storage.states.size()[2:])[indices]
+                #obs_batch = self.storage.observations.view(-1, *self.storage.observations.size()[2:])[indices]
+                prios_batch = self.storage.prios.view(-1, self.storage.prio_shape)[indices]
+                pcs_batch = self.storage.pcs.view(-1, self.pointclouds_shape, 4)[indices]
+                mpos_batch = self.storage.mpos.view(-1, 4)[indices]
+
                 # else:
                 #     states_batch = None
                 actions_batch = self.storage.actions.view(-1, self.storage.actions.size(-1))[indices]
@@ -279,8 +358,9 @@ class rlafford:
                 old_sigma_batch = self.storage.sigma.view(-1, self.storage.actions.size(-1))[indices]
 
                 #print(states_batch.size())
-                actions_log_prob_batch, entropy_batch, value_batch, mu_batch, sigma_batch = self.actor_critic.evaluate(obs_batch,
-                                                                                                                       states_batch,
+                actions_log_prob_batch, entropy_batch, value_batch, mu_batch, sigma_batch = self.actor_critic.evaluate(prios_batch,
+                                                                                                                       pcs_batch,
+                                                                                                                       mpos_batch,
                                                                                                                        actions_batch)
 
                 # KL

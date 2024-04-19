@@ -4,17 +4,21 @@ from torch.utils.data.sampler import BatchSampler, SequentialSampler, SubsetRand
 
 class RolloutStorage:
 
-    def __init__(self, num_envs, num_transitions_per_env, obs_shape, states_shape, actions_shape, device='cpu', sampler='sequential'):
+    def __init__(self, num_envs, num_transitions_per_env, prio_shape, pc_shape, mpo_shape, actions_shape, device='cpu', sampler='sequential'):
 
         self.device = device
         self.sampler = sampler
 
+        self.pc_shape = pc_shape
+        self.mpo_shape = mpo_shape
+        self.prio_shape = prio_shape
         # Core
-        self.observations = torch.zeros(num_transitions_per_env, num_envs, obs_shape, device=self.device)
-        self.states = torch.zeros(num_transitions_per_env, num_envs, *states_shape, device=self.device)
+        self.prios = torch.zeros(num_transitions_per_env, num_envs, prio_shape, device=self.device)
         self.rewards = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
         self.actions = torch.zeros(num_transitions_per_env, num_envs, *actions_shape, device=self.device)
         self.dones = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device).byte()
+        self.pcs = torch.zeros(num_transitions_per_env, num_envs, self.pc_shape, 4, device=device)
+        self.mpos = torch.zeros(num_transitions_per_env, num_envs, mpo_shape, device=device)
 
         # For PPO
         self.actions_log_prob = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
@@ -29,12 +33,13 @@ class RolloutStorage:
 
         self.step = 0
 
-    def add_transitions(self, observations, states, actions, rewards, dones, values, actions_log_prob, mu, sigma):
+    def add_transitions(self, prios, pcs, mpos, actions, rewards, dones, values, actions_log_prob, mu, sigma):
         if self.step >= self.num_transitions_per_env:
             raise AssertionError("Rollout buffer overflow")
 
-        self.observations[self.step].copy_(observations)
-        self.states[self.step].copy_(states)
+        self.prios[self.step].copy_(prios)
+        self.pcs[self.step].copy_(pcs)
+        self.mpos[self.step].copy_(mpos)
         self.actions[self.step].copy_(actions)
         self.rewards[self.step].copy_(rewards.view(-1, 1))
         self.dones[self.step].copy_(dones.view(-1, 1))

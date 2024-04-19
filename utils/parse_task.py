@@ -43,15 +43,14 @@ def parse_task(args, env_cfg, train_cfg, sim_params):
                     asymmetric=False)
         
     elif args.algo == 'rla':
-        task = PPOPC( vec_env,
+        task = rlafford( vec_env,
                     train_cfg,
                     device=rl_device,
                     sampler='sequential',
                     log_dir='run',
                     is_testing=args.test,
                     print_log=args.printlog,
-                    apply_reset=False,
-                    asymmetric=False)
+                    apply_reset=False)
         
     elif args.algo == 'vts':
         task = vtsyne(vec_env,
