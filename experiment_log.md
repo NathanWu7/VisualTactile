@@ -1,13 +1,18 @@
 # Experiment Log
 
-| Task | date |
-| --- | --- |
-| ur5lift | 4/17 |
-| ur5pickandplace | 4/18 |
-|     |     |
-|     |     |
+| Task | date | status |
+| --- | --- | --- |
+| ur5lift | 4/17 |     |
+| ur5pickandplace | 4/18 | failed |
+|     |     |     |
+|     |     |     |
 
-##
+---
+
+tips:
+
+1. **RL** mean_reward要大于0, RL的成功率低的话后面两步都不用做的, 直接kill
+  
 
 ---
 
@@ -22,8 +27,10 @@ cfg/task/ur5pickandplace.yaml
     obs_type: [["oracle"] ]
 
 
-python3 train.py --task ur5pickandplace--algo sac --headless
-python3 train.py --task ur5pickandplace --algo vta --headless
+python3 train.py --task ur5pickandplace --algo sac --headless
+
+python3 train.py --task ur5pickandplace --algo sac --headless --test
+    success_rate:  0.0   in 1024 cases.
 ```
 
 2. VTA
