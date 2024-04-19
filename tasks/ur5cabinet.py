@@ -89,7 +89,7 @@ class Ur5cabinet(BaseTask):
 
         self.pointCloudDownsampleNum = self.cfg["env"]["PCDownSampleNum"]
         self.sensor_downsample_num = self.cfg["env"]["TDownSampleNum"]
-        self.all_downsample_num = self.cfg["env"]["AllDownSampleNum"]
+        self.all_downsample_num = self.pointCloudDownsampleNum + self.sensor_downsample_num * 2
         
         #for saving visualized pointcloud
         self.save_pc = False

@@ -20,6 +20,7 @@ import time
 from torchvision import transforms
 from pointnet2_ops import pointnet2_utils
 
+
 #import numpy as np
 
 gym_BLUE = gymapi.Vec3(0., 0., 1.)
@@ -90,7 +91,7 @@ class Ur5cabinet_door(BaseTask):
 
         self.pointCloudDownsampleNum = self.cfg["env"]["PCDownSampleNum"]
         self.sensor_downsample_num = self.cfg["env"]["TDownSampleNum"]
-        self.all_downsample_num = self.cfg["env"]["AllDownSampleNum"]
+        self.all_downsample_num = self.pointCloudDownsampleNum + self.sensor_downsample_num * 2
         
         #for saving visualized pointcloud
         self.save_pc = False

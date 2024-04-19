@@ -76,7 +76,9 @@ class SAC:
         self.total_shape = self.env_shape + self.prop_shape
         self.iter = cfg_train["load_iter"]
         self.actor_critic = MLPActorCritic(self.total_shape, vec_env.action_space, **ac_kwargs).to(self.device)
-        print(self.task_name)
+        print()
+        print("task name: ", self.task_name)
+        print()
         print(self.actor_critic)
         self.actor_critic_targ = deepcopy(self.actor_critic)
 
@@ -135,6 +137,36 @@ class SAC:
     def save(self,path):
         torch.save(self.actor_critic.state_dict(),path)
 
+    def eval(self,eval_step):
+        current_obs = self.vec_env.reset()
+        current_states = self.vec_env.get_state()
+
+        all_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
+        success_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
+        self.test(os.path.join(self.model_dir,'sac_model_{}.pt'.format(self.iter)))
+        while True:
+            with torch.no_grad():
+                if self.apply_reset:
+                    current_obs = self.vec_env.reset()
+                # Compute the action
+                actions = self.actor_critic.act(current_obs,deterministic =True)
+                # Step the vec_environment
+                next_obs, rews, dones, successes,infos = self.vec_env.step(actions)
+                #print(successes)
+                #print(dones.shape)
+                success_cases += successes
+                all_cases += dones
+                if sum(all_cases) > 0:
+                    cases = int(sum(all_cases).item())
+                    succes_rate = round((sum(success_cases) / sum(all_cases)).item(),4)
+                    print("Task name: ",self.task_name, "Algo: SAC")
+                    print("success_rate: ", succes_rate,"  in {} cases.".format(cases))
+                    print()
+                    if cases >= eval_step:
+                        break
+
+                current_obs.copy_(next_obs)        
+
     def run(self,num_learning_iterations, log_interval = 1):
         """
         the main loop of training.
@@ -144,104 +176,80 @@ class SAC:
         """
         current_obs = self.vec_env.reset()
         current_states = self.vec_env.get_state()
-        
 
-        if self.is_testing:
-            all_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
-            success_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
-            self.test(os.path.join(self.model_dir,'sac_model_{}.pt'.format(self.iter)))
-            while True:
-                with torch.no_grad():
-                    if self.apply_reset:
-                        current_obs = self.vec_env.reset()
-                    # Compute the action
-                    actions = self.actor_critic.act(current_obs,deterministic =True)
-                    # Step the vec_environment
-                    next_obs, rews, dones, successes,infos = self.vec_env.step(actions)
-                    #print(successes)
-                    #print(dones.shape)
-                    success_cases += successes
-                    all_cases += dones
-                    if sum(all_cases) > 0:
-                        cases = int(sum(all_cases).item())
-                        succes_rate = round((sum(success_cases) / sum(all_cases)).item(),4)
-                        print("success_rate: ", succes_rate,"  in {} cases.".format(cases))
-                    current_obs.copy_(next_obs)
-        else:
-            rewbuffer = deque(maxlen=100)
-            lenbuffer = deque(maxlen=100)
-            cur_reward_sum = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
-            cur_episode_length = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
+        rewbuffer = deque(maxlen=100)
+        lenbuffer = deque(maxlen=100)
+        cur_reward_sum = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
+        cur_episode_length = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
 
-            reward_sum = []
-            episode_length = []
+        reward_sum = []
+        episode_length = []
 
-            for it in range(self.current_learning_iteration, num_learning_iterations):
-                start = time.time()
-                ep_infos = []
+        for it in range(self.current_learning_iteration, num_learning_iterations):
+            start = time.time()
+            ep_infos = []
 
-                # Rollout
-                for _ in range(self.num_transitions_per_env):
-                    if self.apply_reset:
-                        current_obs = self.vec_env.reset()
-                        current_states = self.vec_env.get_state()
-                    # Compute the action
-                    actions = self.actor_critic.act(current_obs)
-                    # Step the vec_environment
-                    next_obs, rews, dones, successes, infos = self.vec_env.step(actions)
-                    rews *= self.reward_scale
-                    next_states = self.vec_env.get_state()
-                    # Record the transition
-                    self.storage.add_transitions(current_obs, current_states, actions, rews,next_obs, dones)
-                    current_obs.copy_(next_obs)
-                    current_states.copy_(next_states)
-                    # Book keeping
-                    ep_infos.append(infos)
-
-                    if self.print_log:
-                        cur_reward_sum[:] += rews
-                        cur_episode_length[:] += 1
-
-                        new_ids = (dones > 0).nonzero(as_tuple=False)
-                        reward_sum.extend(cur_reward_sum[new_ids][:, 0].cpu().numpy().tolist())
-                        episode_length.extend(cur_episode_length[new_ids][:, 0].cpu().numpy().tolist())
-                        cur_reward_sum[new_ids] = 0
-                        cur_episode_length[new_ids] = 0
-
-                    if self.storage.step >= self.batch_size:
-                        self.warm_up = False
-
-                    if self.warm_up == False:
-                        mean_value_loss, mean_surrogate_loss = self.update()
+            # Rollout
+            for _ in range(self.num_transitions_per_env):
+                if self.apply_reset:
+                    current_obs = self.vec_env.reset()
+                    current_states = self.vec_env.get_state()
+                # Compute the action
+                actions = self.actor_critic.act(current_obs)
+                # Step the vec_environment
+                next_obs, rews, dones, successes, infos = self.vec_env.step(actions)
+                rews *= self.reward_scale
+                next_states = self.vec_env.get_state()
+                # Record the transition
+                self.storage.add_transitions(current_obs, current_states, actions, rews,next_obs, dones)
+                current_obs.copy_(next_obs)
+                current_states.copy_(next_states)
+                # Book keeping
+                ep_infos.append(infos)
 
                 if self.print_log:
-                    # reward_sum = [x[0] for x in reward_sum]
-                    # episode_length = [x[0] for x in episode_length]
-                    rewbuffer.extend(reward_sum)
-                    lenbuffer.extend(episode_length)
+                    cur_reward_sum[:] += rews
+                    cur_episode_length[:] += 1
 
+                    new_ids = (dones > 0).nonzero(as_tuple=False)
+                    reward_sum.extend(cur_reward_sum[new_ids][:, 0].cpu().numpy().tolist())
+                    episode_length.extend(cur_episode_length[new_ids][:, 0].cpu().numpy().tolist())
+                    cur_reward_sum[new_ids] = 0
+                    cur_episode_length[new_ids] = 0
+
+                if self.storage.step >= self.batch_size:
+                    self.warm_up = False
+
+                if self.warm_up == False:
+                    mean_value_loss, mean_surrogate_loss = self.update()
+
+            if self.print_log:
+                # reward_sum = [x[0] for x in reward_sum]
+                # episode_length = [x[0] for x in episode_length]
+                rewbuffer.extend(reward_sum)
+                lenbuffer.extend(episode_length)
+
+
+            stop = time.time()
+            collection_time = stop - start
+
+            mean_trajectory_length, mean_reward = self.storage.get_statistics()
+            # Learning step
+            start = stop
+            # TODO: need check the buffer size before update
+            # add the update within the interaction loop
+            if self.warm_up == False:
+                # mean_value_loss, mean_surrogate_loss = self.update()
 
                 stop = time.time()
-                collection_time = stop - start
+                learn_time = stop - start
+                if self.print_log:
+                    self.log(locals())
+                if it % log_interval == 0:
+                    self.save(os.path.join(self.model_dir,'sac_model_{}.pt'.format(it)))
+                ep_infos.clear()
+        self.save(os.path.join(self.model_dir, 'sac_model_{}.pt'.format(num_learning_iterations)))
 
-                mean_trajectory_length, mean_reward = self.storage.get_statistics()
-                # Learning step
-                start = stop
-                # TODO: need check the buffer size before update
-                # add the update within the interaction loop
-                if self.warm_up == False:
-                    # mean_value_loss, mean_surrogate_loss = self.update()
-
-                    stop = time.time()
-                    learn_time = stop - start
-                    if self.print_log:
-                        self.log(locals())
-                    if it % log_interval == 0:
-                        self.save(os.path.join(self.model_dir,'sac_model_{}.pt'.format(it)))
-                    ep_infos.clear()
-            self.save(os.path.join(self.model_dir, 'sac_model_{}.pt'.format(num_learning_iterations)))
-
-        pass
 
     def log(self, locs, width=80, pad=35):
         """

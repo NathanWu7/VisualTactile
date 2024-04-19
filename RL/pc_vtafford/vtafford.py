@@ -62,6 +62,10 @@ class vtafford:
         self.actor_critic =  MLPActorCritic(self.origin_shape, vec_env.action_space, **ac_kwargs).to(self.device)
 
         self.actor_critic.to(self.device)
+        print()
+        print("##################")
+        print("RL_model: ", os.path.join(self.model_dir,self.rl_algo+'_model_{}.pt'.format(self.rl_iter)))
+        print()
         self.actor_critic.load_state_dict(torch.load(os.path.join(self.model_dir,self.rl_algo+'_model_{}.pt'.format(self.rl_iter))))
         self.actor_critic.eval()
         
@@ -82,6 +86,70 @@ class vtafford:
             self.pointCloudVisualizerInitialized = False
             self.pcd = o3d.geometry.PointCloud()
 
+    def eval(self, eval_step):
+        self.TAN.load_state_dict(torch.load(os.path.join(self.model_dir,'TAN_model.pt')))
+        self.TAN.eval()
+        current_obs = self.vec_env.reset()
+        current_pcs = self.vec_env.get_pointcloud()
+        actions = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
+        pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
+
+        all_indices = set(torch.arange(pointclouds.size(0)).numpy())
+        while True:
+            with torch.no_grad():
+
+                actions = self.actor_critic.act(current_obs)   
+                pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
+                tactiles = current_pcs[:,self.pointclouds_shape:,0:3]
+                is_zero = torch.all(tactiles == 0, dim=-1)
+                num_zero_points = torch.sum(is_zero, dim=-1)
+                zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
+                touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
+
+                next_obs, rews, dones, successes, infos = self.vec_env.step(actions)
+                next_pointcloud = self.vec_env.get_pointcloud()  
+
+                
+                if len(touch_indices) > 0:
+                    pointclouds[:,:,3] = 0
+                    tactile_part = pointclouds[:,self.pointclouds_shape:,:]
+                    is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
+                    pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
+                    #print(pointclouds.shape)
+                    #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
+                    pcs = pointclouds[:, -self.pointclouds_shape:, :]
+                    labels = pcs[:,:,3].clone()
+                    pcs[:,:,3] = 1 #relabel
+            
+                    output = self.TAN(pcs)  
+
+                else:
+                    pcs = pointclouds[:, :self.pointclouds_shape, :]
+                    pcs[:,:,3] = 1 
+                    output = self.TAN(pcs)
+                pcs[:,:,3] = output.detach()
+
+                if self.pc_debug:
+                    test = pcs[1, :, :3].cpu().numpy()
+                    #print(test.shape)
+                    color = pcs[1, :, 3].unsqueeze(1).cpu().numpy()
+                    color = (color - min(color)) / (max(color)-min(color))
+                    colors_blue = o3d.utility.Vector3dVector( color * [[1,0,0]])
+
+                    self.pcd.points = o3d.utility.Vector3dVector(list(test))
+                    self.pcd.colors = o3d.utility.Vector3dVector(list(colors_blue))
+
+                    if self.pointCloudVisualizerInitialized == False :
+                        self.pointCloudVisualizer.add_geometry(self.pcd)
+                        self.pointCloudVisualizerInitialized = True
+                    else :
+                        self.pointCloudVisualizer.update(self.pcd)  
+            
+                # Step the vec_environment
+                #next_obs, rews, dones, infos = self.vec_env.step(actions)
+                current_obs = next_obs
+                current_pcs = next_pointcloud
+
     def run(self,num_learning_iterations=0,log_interval=100):
         current_obs = self.vec_env.reset()
 
@@ -92,68 +160,7 @@ class vtafford:
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
         
         update_step = 0
-        iter = 0
         all_indices = set(torch.arange(pointclouds.size(0)).numpy())
-        
-
-        if self.is_testing:
-            self.TAN.load_state_dict(torch.load(os.path.join(self.model_dir,'TAN_model.pt')))
-            self.TAN.eval()
-            while True:
-                with torch.no_grad():
-
-                    actions = self.actor_critic.act(current_obs)   
-                    pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
-                    tactiles = current_pcs[:,self.pointclouds_shape:,0:3]
-                    is_zero = torch.all(tactiles == 0, dim=-1)
-                    num_zero_points = torch.sum(is_zero, dim=-1)
-                    zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
-                    touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
-
-                    next_obs, rews, dones, successes, infos = self.vec_env.step(actions)
-                    next_pointcloud = self.vec_env.get_pointcloud()  
-
-                    
-                    if len(touch_indices) > 0:
-                        pointclouds[:,:,3] = 0
-                        tactile_part = pointclouds[:,self.pointclouds_shape:,:]
-                        is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
-                        pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
-                        #print(pointclouds.shape)
-                        #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
-                        pcs = pointclouds[:, -self.pointclouds_shape:, :]
-                        labels = pcs[:,:,3].clone()
-                        pcs[:,:,3] = 1 #relabel
-             
-                        output = self.TAN(pcs)  
-  
-                    else:
-                        pcs = pointclouds[:, :self.pointclouds_shape, :]
-                        pcs[:,:,3] = 1 
-                        output = self.TAN(pcs)
-                    pcs[:,:,3] = output.detach()
-
-                    if self.pc_debug:
-                        test = pcs[1, :, :3].cpu().numpy()
-                        #print(test.shape)
-                        color = pcs[1, :, 3].unsqueeze(1).cpu().numpy()
-                        color = (color - min(color)) / (max(color)-min(color))
-                        colors_blue = o3d.utility.Vector3dVector( color * [[1,0,0]])
-
-                        self.pcd.points = o3d.utility.Vector3dVector(list(test))
-                        self.pcd.colors = o3d.utility.Vector3dVector(list(colors_blue))
-
-                        if self.pointCloudVisualizerInitialized == False :
-                            self.pointCloudVisualizer.add_geometry(self.pcd)
-                            self.pointCloudVisualizerInitialized = True
-                        else :
-                            self.pointCloudVisualizer.update(self.pcd)  
-                
-                    # Step the vec_environment
-                    #next_obs, rews, dones, infos = self.vec_env.step(actions)
-                    current_obs = next_obs
-                    current_pcs = next_pointcloud
-
 
         while True:
 
@@ -223,7 +230,11 @@ class vtafford:
                 #print(next_obs[:,])
             if update_step % log_interval == 0 and update_step != 0:
                 torch.save(self.TAN.state_dict(),os.path.join(self.model_dir,'TAN_model.pt') )
-                print("Save at:", update_step, "  loss: ",loss.item())
+                print("Task name: ",self.task_name, "Algo: VTA")
+                print("Save at:", update_step, "  Loss: ", loss.item())
+                print()
+                if update_step >= num_learning_iterations:
+                    break
 
             current_obs = next_obs
             current_pcs = next_pointcloud

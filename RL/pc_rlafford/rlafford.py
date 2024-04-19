@@ -13,12 +13,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
-from RL.ppo import RolloutStorage
-from RL.ppo import ActorCritic
+from RL.pc_rlafford.storage import RolloutStorage
+from RL.pc_rlafford.module import ActorCritic
 
 import copy
 
-class PPO:
+class rlafford:
     def __init__(self,
                  vec_env,
                  cfg_train,

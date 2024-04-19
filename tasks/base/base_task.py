@@ -53,7 +53,9 @@ class BaseTask():
         self.num_states = cfg["env"].get("numStates", 0)
 
         self.num_actions = cfg["env"]["numActions"]
-        self.pointcloud_size = cfg["env"]["AllDownSampleNum"]
+        self.pointCloudDownsampleNum = cfg["env"]["PCDownSampleNum"]
+        self.sensor_downsample_num = cfg["env"]["TDownSampleNum"]
+        self.pointcloud_size = self.pointCloudDownsampleNum + self.sensor_downsample_num * 2
 
         self.control_freq_inv = cfg["env"].get("controlFrequencyInv", 1)
         self.dof_config = cfg["env"]["dof_config"]

@@ -56,15 +56,19 @@ class vtsyne:
         self.dagger_iter = 11
 
         self.log_dir = log_dir
-        self.writer = SummaryWriter(log_dir=self.model_dir, flush_secs=10)
+
         self.model_dir = os.path.join(log_dir,self.task_name) 
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
+        self.writer = SummaryWriter(log_dir=self.model_dir, flush_secs=10)
         self.actor_critic =  MLPActorCritic(self.origin_shape, vec_env.action_space, **ac_kwargs).to(self.device)
         self.student_actor = Student(self.input_shape, self.pointclouds_shape, self.latent_shape, self.action_space.shape, self.vec_env.num_envs, self.device, self.student_cfg)
 
         self.actor_critic.to(self.device)
         self.student_actor.to(self.device)
+        print("##################")
+        print("RL_model: ", os.path.join(self.model_dir,self.rl_algo+'_model_{}.pt'.format(self.rl_iter)))
+        print()
         self.actor_critic.load_state_dict(torch.load(os.path.join(self.model_dir,self.rl_algo+'_model_{}.pt'.format(self.rl_iter))))
         self.actor_critic.eval()
         
@@ -83,91 +87,98 @@ class vtsyne:
             self.pointCloudVisualizerInitialized = False
             self.pcd = o3d.geometry.PointCloud()
 
+    def eval(self, eval_step):
+
+        all_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
+        success_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
+        self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir,'vts_policy_model.pt')))
+        self.student_actor.eval()
+        current_obs = self.vec_env.reset()
+        current_pcs = self.vec_env.get_pointcloud()
+        pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
+
+        all_indices = set(torch.arange(pointclouds.size(0)).numpy())
+        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,4),device = self.device)
+        old_case = 0
+        while True:
+            with torch.no_grad():
+        
+                pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
+                tactiles = current_pcs[:,self.pointclouds_shape:,0:3]
+                is_zero = torch.all(tactiles == 0, dim=-1)
+                num_zero_points = torch.sum(is_zero, dim=-1)
+                zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
+                
+                touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
+    
+                if len(touch_indices) > 0:
+
+                    pointclouds[:,:,3] = 0
+                    tactile_part = pointclouds[:,self.pointclouds_shape:,:]
+                    is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
+                    pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
+
+                    #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
+
+                    pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
+                    pcs[:,-self.tactile_shape:,3] = 1     
+
+                else:
+                    pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
+                    pcs[:,:,3] = 0
+
+                mu, sigma, pi = self.student_actor.act(pcs,current_obs[:,:self.prop_shape])  
+                action_pre = self.student_actor.mdn_sample(mu, sigma, pi)
+
+                next_obs, rews, dones, successes,infos = self.vec_env.step(action_pre)
+                success_cases += successes
+                all_cases += dones
+                if sum(all_cases) > 0:
+                    cases = int(sum(all_cases).item())
+                    succes_rate = round((sum(success_cases) / sum(all_cases)).item(),4)
+                    if cases != old_case:
+                        print("Task name: ",self.task_name, "Algo: VTS")
+                        print("success_rate: ", succes_rate,"  in {} cases.".format(cases))
+                        print()
+                    if cases >= eval_step:
+                        break
+                    old_case = cases
+                next_pointcloud = self.vec_env.get_pointcloud()  
+
+                if self.pc_debug:
+                    test = pcs[0, :, :3].cpu().numpy()
+                    #print(test.shape)
+                    # color = output[0].unsqueeze(1).detach().cpu().numpy()
+                    # color = (color - min(color)) / (max(color)-min(color))
+                    # colors_blue = o3d.utility.Vector3dVector( color * [[1,0,0]])
+                    #print(color * [[0,0,1]])
+                    self.pcd.points = o3d.utility.Vector3dVector(list(test))
+                    #self.pcd.colors = o3d.utility.Vector3dVector(list(colors_blue))
+
+                    if self.pointCloudVisualizerInitialized == False :
+                        self.pointCloudVisualizer.add_geometry(self.pcd)
+                        self.pointCloudVisualizerInitialized = True
+                    else :
+                        self.pointCloudVisualizer.update(self.pcd)
+            
+                # Step the vec_environment
+                current_obs = next_obs
+                current_pcs = next_pointcloud
+
+
     def run(self,num_learning_iterations=0,log_interval=1):
         model_dir = os.path.join(self.log_dir,self.task_name) 
         if not os.path.exists(model_dir):
             os.makedirs(model_dir)
         current_obs = self.vec_env.reset()
         current_pcs = self.vec_env.get_pointcloud()
-
-        actions = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
-        current_dones = torch.zeros((self.vec_env.num_envs), device = self.device)
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
 
         update_step = 1
         iter = 0
         all_indices = set(torch.arange(pointclouds.size(0)).numpy())
         pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,4),device = self.device)
-        counter = torch.zeros((self.vec_env.num_envs), device = self.device)
         action_labels = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
-        
-
-        if self.is_testing:
-            all_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
-            success_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
-            self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir,'vts_policy_model.pt')))
-            self.student_actor.eval()
-            while True:
-                with torch.no_grad():
-            
-                    pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
-                    tactiles = current_pcs[:,self.pointclouds_shape:,0:3]
-                    is_zero = torch.all(tactiles == 0, dim=-1)
-                    num_zero_points = torch.sum(is_zero, dim=-1)
-                    zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
-                    
-                    touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
-        
-                    if len(touch_indices) > 0:
-
-                        pointclouds[:,:,3] = 0
-                        tactile_part = pointclouds[:,self.pointclouds_shape:,:]
-                        is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
-                        pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
-
-                        #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
-
-                        pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
-                        pcs[:,-self.tactile_shape:,3] = 1     
-
-                    else:
-                        pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
-                        pcs[:,:,3] = 0
-
-                    mu, sigma, pi = self.student_actor.act(pcs,current_obs[:,:self.prop_shape])  
-                    action_pre = self.student_actor.mdn_sample(mu, sigma, pi)
-                    #action_pre = self.actor_critic.act_inference(current_obs)  
-                    #action_pre = self.student_actor(pcs,current_obs[:,:self.prop_shape])   
-
-                    next_obs, rews, dones, successes,infos = self.vec_env.step(action_pre)
-                    success_cases += successes
-                    all_cases += dones
-                    if sum(all_cases) > 0:
-                        cases = int(sum(all_cases).item())
-                        succes_rate = round((sum(success_cases) / sum(all_cases)).item(),4)
-                        print("success_rate: ", succes_rate,"  in {} cases.".format(cases))
-                    next_pointcloud = self.vec_env.get_pointcloud()  
-
-                    if self.pc_debug:
-                        test = pcs[0, :, :3].cpu().numpy()
-                        #print(test.shape)
-                        # color = output[0].unsqueeze(1).detach().cpu().numpy()
-                        # color = (color - min(color)) / (max(color)-min(color))
-                        # colors_blue = o3d.utility.Vector3dVector( color * [[1,0,0]])
-                        #print(color * [[0,0,1]])
-                        self.pcd.points = o3d.utility.Vector3dVector(list(test))
-                        #self.pcd.colors = o3d.utility.Vector3dVector(list(colors_blue))
-
-                        if self.pointCloudVisualizerInitialized == False :
-                            self.pointCloudVisualizer.add_geometry(self.pcd)
-                            self.pointCloudVisualizerInitialized = True
-                        else :
-                            self.pointCloudVisualizer.update(self.pcd)
-               
-                    # Step the vec_environment
-                    current_obs = next_obs
-                    current_pcs = next_pointcloud
-
        
         while True:
             beta = iter / (self.dagger_iter - 1)
@@ -199,9 +210,6 @@ class vtsyne:
                     pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
                     pcs[:,:,3] = 0
 
-                
-                
-                # print("current_obs: ",current_obs)
 
                 mu, sigma, pi = self.student_actor.act(pcs,current_obs[:,:self.prop_shape])    #[:,:self.prop_shape]
                 action_pre = self.student_actor.mdn_sample(mu, sigma, pi)
@@ -247,11 +255,13 @@ class vtsyne:
 
             if update_step % log_interval == 0:
                 torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'vts_policy_model.pt'))
+                print("Task name: ",self.task_name, "Algo: VTS")
                 print("Save at:", update_step, " Iter:",iter, "  Loss: ", loss.item())
+                print()
                 iter = iter + 1 if iter < 10 else 0
-
+                if update_step >= num_learning_iterations:
+                    break
             
             current_obs = next_obs
             current_pcs = next_pointcloud
-            current_dones = dones.clone()
 

@@ -1,4 +1,4 @@
-seed: -1
+seed: 42
 
 clip_observations: 5.0
 clip_actions: 1.0

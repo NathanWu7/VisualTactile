@@ -154,7 +154,7 @@ class Student(nn.Module):
         self.init_weights(self.actor, actor_weights)
 
         self.current_obs = torch.zeros(self.replay_size, num_envs, self.prio_shape, device=device)
-        self.pcs = torch.zeros(self.replay_size, num_envs, 8192, 5, device=device)
+        self.pcs = torch.zeros(self.replay_size, num_envs, self.pc_shape, 5, device=device)
         self.labels = torch.zeros(self.replay_size, num_envs, self.actions_space, device=device)
         self.z_pi = nn.Sequential(
             nn.Linear(self.hidden_size, self.num_gaussians),

@@ -11,6 +11,7 @@ from RL.sac.sac import SAC
 from RL.td3.td3 import TD3
 from RL.test.test import TEST
 from RL.pc_vtsyne.vtsyne import vtsyne
+from RL.pc_rlafford.rlafford import rlafford
 from RL.pc_vtafford.vtafford import vtafford
 from RL.pc_vtafford.vtpolicy import vtpolicy
 
@@ -41,7 +42,7 @@ def parse_task(args, env_cfg, train_cfg, sim_params):
                     apply_reset=False,
                     asymmetric=False)
         
-    elif args.algo == 'ppopc':
+    elif args.algo == 'rla':
         task = PPOPC( vec_env,
                     train_cfg,
                     device=rl_device,

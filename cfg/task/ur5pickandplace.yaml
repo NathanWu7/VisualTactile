@@ -9,7 +9,6 @@ env:
   actionScale: 1.0
   PCDownSampleNum: 8192
   TDownSampleNum: 64
-  AllDownSampleNum: 8320
   obs_type: ["oracle"]      #["oracle","pointcloud","tactile"]  
   aggregateMode: 1
   seed: 42

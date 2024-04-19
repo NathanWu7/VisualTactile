@@ -1,11 +1,11 @@
-seed: -1
+seed: 42
 
 clip_observations: 5.0
 clip_actions: 1.0
 
 env_shape: 7
 proprioception_shape: 21
-load_iter: 10000
+load_iter: 2500
 
 learn:
   test: False
