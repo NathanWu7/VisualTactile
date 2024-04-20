@@ -22,7 +22,6 @@ def train():
             runner.eval()
         else:
             runner.run()
-
     else:
         print("Unrecognized algorithm!")
 

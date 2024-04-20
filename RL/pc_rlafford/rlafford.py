@@ -57,6 +57,7 @@ class rlafford:
         self.pointclouds_shape = self.cfg_train["PCDownSampleNum"]
         self.tactile_shape = self.cfg_train["TDownSampleNum"] * 2
         self.prop_shape = self.cfg_train["proprioception_shape"]
+        self.iter = cfg_train["load_iter"]
         self.mpo_shape = 4 #points 3 affordence map 1
         self.total_input_shape = self.pc_latent_shape + self.prop_shape + self.mpo_shape
 
@@ -74,8 +75,7 @@ class rlafford:
 
 
         self.TAN = Network(4, 16).to(device)
-        #self.TAN.load_state_dict(torch.load(os.path.join(self.model_dir,'TAN_model.pt')))
-        #self.TAN.eval()
+
 
         self.TAN_optimizer = optim.Adam([
 	        {'params': self.TAN.parameters(), 'lr': self.learning_rate,}
@@ -104,6 +104,8 @@ class rlafford:
         self.model_dir = os.path.join(log_dir,self.task_name) 
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
+        #self.TAN.load_state_dict(torch.load(os.path.join(self.model_dir,'TAN_model2.pt')))
+        #self.TAN.eval()
         self.apply_reset = apply_reset
 
     def test(self, path):
@@ -118,13 +120,86 @@ class rlafford:
     def save(self, path):
         torch.save(self.actor_critic.state_dict(), path)
 
-    def get_labeled_pcs(current_pcs, current_tactiles):
+    def get_labeled_pcs(self, current_pcs, current_tactiles):
         is_nonzero = (current_tactiles != 0).any(dim=2)
         
         current_tactiles[:,:,3][is_nonzero] = 1
-        pcs_labeled = torch.cat(current_pcs, current_tactiles, dim=1)
+        pcs_labeled = torch.cat((current_pcs, current_tactiles), dim=1)
         return pcs_labeled
     
+    def eval(self, eval_step):
+        print()
+        print("#####################")
+        print("Eval model: ", os.path.join(self.model_dir,'rla_model_{}.pt'.format(self.iter)))
+        self.test(os.path.join(self.model_dir,'rla_model_{}.pt'.format(self.iter)))
+        
+        current_obs = self.vec_env.reset()
+
+        current_pcs_all = self.vec_env.get_pointcloud()
+
+        current_pcs = torch.zeros((self.vec_env.num_envs, self.pointclouds_shape, 4), device = self.device) 
+        current_pcs[:,:,0:3] = current_pcs_all[:,:self.pointclouds_shape,:]
+
+        current_tactiles = torch.zeros((self.vec_env.num_envs, self.tactile_shape, 4), device = self.device) 
+        current_tactiles[:,:,0:3] = current_pcs_all[:,self.pointclouds_shape:,:]  #(num_envs, tactile_shape, 3)
+
+        current_prios = current_obs[:,:self.prop_shape]
+        
+        all_indices = set(torch.arange(self.vec_env.num_envs).numpy())
+        all_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
+        success_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
+
+        current_mpos = torch.zeros((self.vec_env.num_envs, 4), device = self.device) 
+
+        while True:
+            with torch.no_grad():
+                if self.apply_reset:
+                    current_obs = self.vec_env.reset()
+
+                current_pcs[:,:,0:3] = current_pcs_all[:,:self.pointclouds_shape,:]
+                current_tactiles[:,:,0:3] = current_pcs_all[:,self.pointclouds_shape:,:]
+                current_prios = current_obs[:,:self.prop_shape]
+
+                is_zero = torch.all(current_tactiles == 0, dim=-1)
+                num_zero_points = torch.sum(is_zero, dim=-1)
+                zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
+                touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
+
+                if len(touch_indices) > 0:
+                    pcs_labeled = self.get_labeled_pcs(current_pcs, current_tactiles)
+
+                    #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
+                    current_pcs[touch_indices,:,:] = pcs_labeled[touch_indices, -self.pointclouds_shape:, :]
+                    current_pcs[:,:,3] = 1 
+                    output = self.TAN(current_pcs)  
+
+                else:
+                    current_pcs[:,:,3] = 1 
+                    output = self.TAN(current_pcs)
+
+                current_pcs[:,:,3] = output.detach()
+
+                top_values, top_indices = torch.topk(output.detach(), 1, dim=1)
+                current_mpos = torch.gather(current_pcs, 1, top_indices.unsqueeze(-1).expand(-1, -1, current_pcs.size(-1))).squeeze(1)
+
+                actions = self.actor_critic.act_inference(current_prios, current_pcs, current_mpos)
+                next_obs, rews, dones,successes, infos = self.vec_env.step(actions)
+                next_pcs = self.vec_env.get_pointcloud()
+
+                success_cases += successes
+                all_cases += dones
+                if sum(all_cases) > 0:
+                    cases = int(sum(all_cases).item())
+                    succes_rate = round((sum(success_cases) / sum(all_cases)).item(),4)
+                    print("Task name: ",self.task_name, "Algo: RLA")
+                    print("success_rate: ", succes_rate,"  in {} cases.".format(cases))
+                    print()
+                    if cases >= eval_step:
+                        break
+
+                current_pcs_all.copy_(next_pcs)
+                current_obs.copy_(next_obs)
+
     def run(self, num_learning_iterations, log_interval=1):
         current_obs = self.vec_env.reset()
 
@@ -142,130 +217,121 @@ class rlafford:
 
         current_mpos = torch.zeros((self.vec_env.num_envs, 4), device = self.device) 
 
-        if self.is_testing:
-            pass
-            # self.test(os.path.join(self.model_dir,'sac_model_{}.pt'.format(self.iter)))
-            # while True:
-            #     with torch.no_grad():
-            #         if self.apply_reset:
-            #             current_obs = self.vec_env.reset()
-            #         # Compute the action
-            #         actions = self.actor_critic.act_inference(current_obs)
-            #         next_obs, rews, dones, infos = self.vec_env.step(actions)
-            #         current_obs.copy_(next_obs)
-        else:
-            rewbuffer = deque(maxlen=100)
-            lenbuffer = deque(maxlen=100)
-            cur_reward_sum = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
-            cur_episode_length = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
 
-            reward_sum = []
-            episode_length = []
+        rewbuffer = deque(maxlen=100)
+        lenbuffer = deque(maxlen=100)
+        cur_reward_sum = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
+        cur_episode_length = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
 
-            for it in range(self.current_learning_iteration, num_learning_iterations):
-                start = time.time()
-                ep_infos = []
+        reward_sum = []
+        episode_length = []
 
-                # Rollout
-                for _ in range(self.num_transitions_per_env):
-                    if self.apply_reset:
-                        current_obs = self.vec_env.reset()
+        for it in range(self.current_learning_iteration, num_learning_iterations):
+            start = time.time()
+            ep_infos = []
 
-                        current_pcs_all = self.vec_env.get_pointcloud()
+            # Rollout
+            for _ in range(self.num_transitions_per_env):
+                if self.apply_reset:
+                    current_obs = self.vec_env.reset()
 
-                        current_pcs[:,:,0:3] = current_pcs_all[:,:self.pointclouds_shape,:]
-                        current_tactiles[:,:,0:3] = current_pcs_all[:,self.pointclouds_shape:,:]
-
-                        current_prios = current_obs[:,:self.prop_shape]
+                    current_pcs_all = self.vec_env.get_pointcloud()
 
                     current_pcs[:,:,0:3] = current_pcs_all[:,:self.pointclouds_shape,:]
                     current_tactiles[:,:,0:3] = current_pcs_all[:,self.pointclouds_shape:,:]
+
                     current_prios = current_obs[:,:self.prop_shape]
 
-                    is_zero = torch.all(current_tactiles == 0, dim=-1)
-                    num_zero_points = torch.sum(is_zero, dim=-1)
-                    zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
-                    touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
+                current_pcs[:,:,0:3] = current_pcs_all[:,:self.pointclouds_shape,:]
+                current_tactiles[:,:,0:3] = current_pcs_all[:,self.pointclouds_shape:,:]
+                current_prios = current_obs[:,:self.prop_shape]
 
-                    if len(touch_indices) > 0:
-                        pcs_labeled = self.get_labeled_pcs(current_pcs, current_tactiles)
+                is_zero = torch.all(current_tactiles == 0, dim=-1)
+                num_zero_points = torch.sum(is_zero, dim=-1)
+                zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
+                touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
 
-                        #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
-                        current_pcs[touch_indices,:,:] = pcs_labeled[touch_indices, -self.pointclouds_shape:, :]
-                        labels = current_pcs[:,:,3].clone()
+                if len(touch_indices) > 0:
+                    pcs_labeled = self.get_labeled_pcs(current_pcs, current_tactiles)
 
-                        current_pcs[:,:,3] = 1 
-                        output = self.TAN(current_pcs)  
-                        # print("output:", output)
-                        #print("label:", label)
-                        loss = self.TAN_criterion(output[touch_indices,:],labels[touch_indices,:])
-                        #print(loss)
+                    #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
+                    current_pcs[touch_indices,:,:] = pcs_labeled[touch_indices, -self.pointclouds_shape:, :]
+                    labels = current_pcs[:,:,3].clone()
 
-                        self.TAN_optimizer.zero_grad()
-                        loss.backward()
-                        self.TAN_optimizer.step()       
-                        self.writer.add_scalar('Loss/pc', loss,it)      
-                    else:
-                        current_pcs[:,:,3] = 1 
-                        output = self.TAN(current_pcs)
+                    current_pcs[:,:,3] = 1 
+                    output = self.TAN(current_pcs)  
+                    # print("output:", output)
+                    #print("label:", label)
+                    loss = self.TAN_criterion(output[touch_indices,:],labels[touch_indices,:])
+                    #print(loss)
 
-                    current_pcs[:,:,3] = output.detach()
+                    self.TAN_optimizer.zero_grad()
+                    loss.backward()
+                    self.TAN_optimizer.step()       
+                    self.writer.add_scalar('Loss/pc', loss,it)      
+                else:
+                    current_pcs[:,:,3] = 1 
+                    output = self.TAN(current_pcs)
 
-                    top_values, top_indices = torch.topk(output.detach(), 1, dim=1)
-                    current_mpos = torch.gather(current_pcs, 1, top_indices.unsqueeze(-1).expand(-1, -1, current_pcs.size(-1))).squeeze(1)
+                current_pcs[:,:,3] = output.detach()
 
-                    # Compute the action
-                    actions, actions_log_prob, values, mu, sigma = self.actor_critic.act(current_prios, current_pcs, current_mpos)
-                    # Step the vec_environment
-                    next_obs, rews, dones,successes, infos = self.vec_env.step(actions)
-                    rews += (current_mpos[:,3]-1) * 0.2
+                top_values, top_indices = torch.topk(output.detach(), 1, dim=1)
+                current_mpos = torch.gather(current_pcs, 1, top_indices.unsqueeze(-1).expand(-1, -1, current_pcs.size(-1))).squeeze(1)
 
-                    next_pcs = self.vec_env.get_pointcloud()
+                # Compute the action
+                actions, actions_log_prob, values, mu, sigma = self.actor_critic.act(current_prios, current_pcs, current_mpos)
+                # Step the vec_environment
+                next_obs, rews, dones,successes, infos = self.vec_env.step(actions)
+                rews += (current_mpos[:,3]-1) * 0.2
 
-                    # pcs = next_states[:,next_obs.size(1):]#.view(self.vec_env.num_envs,1024,3)
-                    # print(pcs.size())
-                    # Record the transition
-                    self.storage.add_transitions(current_prios, current_pcs, current_mpos, actions, rews, dones, values, actions_log_prob, mu, sigma)
-                    current_pcs_all.copy_(next_pcs)
-                    current_obs.copy_(next_obs)
-                    # Book keeping
-                    ep_infos.append(infos)
+                next_pcs = self.vec_env.get_pointcloud()
 
-                    if self.print_log:
-                        cur_reward_sum[:] += rews
-                        cur_episode_length[:] += 1
-
-                        new_ids = (dones > 0).nonzero(as_tuple=False)
-                        reward_sum.extend(cur_reward_sum[new_ids][:, 0].cpu().numpy().tolist())
-                        episode_length.extend(cur_episode_length[new_ids][:, 0].cpu().numpy().tolist())
-                        cur_reward_sum[new_ids] = 0
-                        cur_episode_length[new_ids] = 0
+                # pcs = next_states[:,next_obs.size(1):]#.view(self.vec_env.num_envs,1024,3)
+                # print(pcs.size())
+                # Record the transition
+                self.storage.add_transitions(current_prios, current_pcs, current_mpos, actions, rews, dones, values, actions_log_prob, mu, sigma)
+                current_pcs_all.copy_(next_pcs)
+                current_obs.copy_(next_obs)
+                # Book keeping
+                ep_infos.append(infos)
 
                 if self.print_log:
-                    # reward_sum = [x[0] for x in reward_sum]
-                    # episode_length = [x[0] for x in episode_length]
-                    rewbuffer.extend(reward_sum)
-                    lenbuffer.extend(episode_length)
+                    cur_reward_sum[:] += rews
+                    cur_episode_length[:] += 1
 
-                _, _, last_values, _, _ = self.actor_critic.act(current_prios, current_pcs, current_mpos)
-                stop = time.time()
-                collection_time = stop - start
+                    new_ids = (dones > 0).nonzero(as_tuple=False)
+                    reward_sum.extend(cur_reward_sum[new_ids][:, 0].cpu().numpy().tolist())
+                    episode_length.extend(cur_episode_length[new_ids][:, 0].cpu().numpy().tolist())
+                    cur_reward_sum[new_ids] = 0
+                    cur_episode_length[new_ids] = 0
 
-                mean_trajectory_length, mean_reward = self.storage.get_statistics()
+            if self.print_log:
+                # reward_sum = [x[0] for x in reward_sum]
+                # episode_length = [x[0] for x in episode_length]
+                rewbuffer.extend(reward_sum)
+                lenbuffer.extend(episode_length)
+            
+            _, _, last_values, _, _ = self.actor_critic.act(current_prios, current_pcs, current_mpos)
+            stop = time.time()
+            collection_time = stop - start
 
-                # Learning step
-                start = stop
-                self.storage.compute_returns(last_values, self.gamma, self.lam)
-                mean_value_loss, mean_surrogate_loss = self.update()
-                self.storage.clear()
-                stop = time.time()
-                learn_time = stop - start
-                if self.print_log:
-                    self.log(locals())
-                if it % log_interval == 0:
-                    self.save(os.path.join(self.model_dir,'rla_model_{}.pt'.format(it)))
-                ep_infos.clear()
-            self.save(os.path.join(self.model_dir, 'rla_model_{}.pt'.format(num_learning_iterations)))
+            mean_trajectory_length, mean_reward = self.storage.get_statistics()
+
+            # Learning step
+            start = stop
+            self.storage.compute_returns(last_values, self.gamma, self.lam)
+            mean_value_loss, mean_surrogate_loss = self.update()
+            self.storage.clear()
+            stop = time.time()
+            learn_time = stop - start
+            if self.print_log:
+                self.log(locals())
+            if it % log_interval == 0:
+                self.save(os.path.join(self.model_dir,'rla_model_{}.pt'.format(it)))
+                torch.save(self.TAN.state_dict(),os.path.join(self.model_dir,'TAN_model2.pt') )
+            ep_infos.clear()
+        self.save(os.path.join(self.model_dir, 'rla_model_{}.pt'.format(num_learning_iterations)))
+        torch.save(self.TAN.state_dict(),os.path.join(self.model_dir,'TAN_model2.pt') )
 
     def log(self, locs, width=80, pad=35):
         self.tot_timesteps += self.num_transitions_per_env * self.vec_env.num_envs

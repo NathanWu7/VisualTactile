@@ -41,6 +41,7 @@ class vtpolicy:
 
         self.rl_algo = self.cfg_train["rl_algo"]
         self.rl_iter = self.cfg_train["rl_iter"]
+        self.policy_iter = self.cfg_train["policy_iter"]
 
         self.latent_shape = self.cfg_train["latent_shape"]
         self.prop_shape = self.cfg_train["proprioception_shape"]
@@ -97,7 +98,10 @@ class vtpolicy:
         current_pcs = self.vec_env.get_pointcloud()
         all_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
         success_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
-        self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir,'policy_model.pt')))
+        print()
+        print("#####################")
+        print("Eval model: ", os.path.join(self.model_dir,'policy_model_{}.pt'.format(self.policy_iter)))
+        self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir,'policy_model_{}.pt'.format(self.policy_iter))))
         self.student_actor.eval()
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
 
@@ -270,13 +274,17 @@ class vtpolicy:
                     self.pointCloudVisualizer.update(self.pcd)  
 
             if update_step % log_interval == 0:
-                torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model.pt'))
                 print("Task name: ",self.task_name, "Algo: VTP")
                 print("Save at:", update_step, " Iter:",iter, "  Loss: ", loss.item())
                 print()
                 if update_step >= num_learning_iterations:
+                    torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model_{}.pt'.format(update_step)))
                     break
                 iter = iter + 1 if iter < 10 else 0
+
+            if update_step % (log_interval * 10) == 0:
+                torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model_{}.pt'.format(update_step)))
+
 
             current_obs = next_obs
             current_pcs = next_pointcloud

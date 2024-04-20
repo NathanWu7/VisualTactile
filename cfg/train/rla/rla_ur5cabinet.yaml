@@ -5,15 +5,12 @@ origin_shape: 31 #env origin
 proprioception_shape: 21  #proprio 
 encoded_observation_shape: 37 # encoded = proprio + latent
 latent_shape: 16
+load_iter: 5000
 
-
-student_model_path: "/home/nathan/VisualTactile/run/student_model.pt"
-rl_model_path: "/home/nathan/VisualTactile/run/test_model_600.pt"
-adapter_model_path: "/home/nathan/VisualTactile/run/adapter_model.pt"
 
 policy: # only works for MlpPolicy right now
-  pi_hid_sizes: [512, 512, 256]
-  vf_hid_sizes: [512, 512, 256]
+  pi_hid_sizes: [512, 512, 512]
+  vf_hid_sizes: [512, 512, 512]
   activation: elu # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
 
   

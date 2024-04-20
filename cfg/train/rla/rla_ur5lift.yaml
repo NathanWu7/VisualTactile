@@ -4,10 +4,7 @@ torch_deterministic: True
 proprioception_shape: 21  #proprio 
 PCDownSampleNum: 8192
 TDownSampleNum: 64
-
-student_model_path: "/home/nathan/VisualTactile/run/student_model.pt"
-rl_model_path: "/home/nathan/VisualTactile/run/test_model_600.pt"
-adapter_model_path: "/home/nathan/VisualTactile/run/adapter_model.pt"
+load_iter: 5000
 
 policy: # only works for MlpPolicy right now
   pi_hid_sizes: [512, 512, 512]
@@ -19,11 +16,11 @@ policy: # only works for MlpPolicy right now
 learn:
   test: False
   resume: 0
-  save_interval: 400 # check for potential saves every this many iterations
+  save_interval: 500 # check for potential saves every this many iterations
   print_log: True
   tan_lr: 0.001
   # rollout params
-  max_iterations: 5000
+  max_iterations: 10000
 
   # training params
   cliprange: 0.2
