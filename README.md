@@ -105,6 +105,7 @@ python3 train.py --task ur5xxxx --algo vts --headless
 For testing
 ```sh
 python3 train.py --task ur5xxxx --algo vts --headless --test
+```
 
 ### 2. RLA
 For algo modify this file:   cfg/train/rla/rla_ur5xxx.yaml   <br>
