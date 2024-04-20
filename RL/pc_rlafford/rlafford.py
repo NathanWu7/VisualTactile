@@ -96,7 +96,7 @@ class rlafford:
         # Log
         self.log_dir = log_dir
         self.print_log = print_log
-        self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
+        
         self.tot_timesteps = 0
         self.tot_time = 0
         self.is_testing = False
@@ -104,8 +104,11 @@ class rlafford:
         self.model_dir = os.path.join(log_dir,self.task_name) 
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
-        #self.TAN.load_state_dict(torch.load(os.path.join(self.model_dir,'TAN_model2.pt')))
-        #self.TAN.eval()
+        self.writer = SummaryWriter(log_dir=self.model_dir, flush_secs=10)
+        load_pretrained_TAN = False
+        if load_pretrained_TAN:
+            self.TAN.load_state_dict(torch.load(os.path.join(self.model_dir,'TAN_model2.pt')))
+            self.TAN.eval()
         self.apply_reset = apply_reset
 
     def test(self, path):
