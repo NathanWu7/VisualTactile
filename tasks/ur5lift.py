@@ -813,8 +813,8 @@ class Ur5lift(BaseTask):
         
         check = (u_delta + dof_pos).clone()
         u_offset = position_check(self.actuator_joints, self.mimic_joints, self.arm_dof, check)
-        
-        self._pos_control = (u_delta + dof_pos + u_offset)
+        u_arm_offset = check - dof_pos
+        self._pos_control = (u_delta + dof_pos + u_offset) + u_arm_offset
         
         self._pos_control = torch.clamp(self._pos_control, min=self.all_limits[0],max=self.all_limits[1])
 

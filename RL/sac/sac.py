@@ -147,6 +147,7 @@ class SAC:
 
         if self.is_testing:
             self.test(os.path.join(self.model_dir,'sac_model_{}.pt'.format(self.iter)))
+            print("#############")
             while True:
                 with torch.no_grad():
                     if self.apply_reset:

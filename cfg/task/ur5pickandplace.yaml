@@ -1,6 +1,6 @@
 env:
   taskname: "ur5pickandplace"
-  numEnvs: 512
+  numEnvs: 1
   numStates: 31 #
   sim_device: "cuda:0"
   compute_device_id: 0

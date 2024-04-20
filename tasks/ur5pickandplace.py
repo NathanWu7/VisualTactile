@@ -142,7 +142,7 @@ class Ur5pickandplace(BaseTask):
         #default pos
         self.default_dof_pos = to_torch(
             [-1.57, 0, -1.57, 0, 1.57, 0, 
-             0., 0., 0., 0., 0., 0.], device=self.device
+             0., 0.], device=self.device
         )
 
         self.position_limits = to_torch([[-4.,-1.5,-2.355,-0.785,-3.14,-3.14,0   ],
@@ -158,7 +158,8 @@ class Ur5pickandplace(BaseTask):
 
 
         asset_root = 'assets'
-        asset_file = 'ur5_rq_gsmini_wo_cover.urdf'
+        # asset_file = 'ur5_rq_gsmini_wo_cover.urdf'
+        asset_file = 'ur5_DH_test.urdf'
 
         ur5_assert = get_UR5_asset(self.gym, self.sim, asset_root, asset_file)
         self.num_dof = self.gym.get_asset_dof_count(ur5_assert)
@@ -188,7 +189,7 @@ class Ur5pickandplace(BaseTask):
         barrier_asset = self.gym.create_box(self.sim, *[0.3, 0.3, self.table_stand_height + 0.2], barrier_opts)
 
         #create cube asset
-        self.cubeA_size = 0.060
+        self.cubeA_size = 0.040
         cubeA_pos = [0.15, 0.4, self.table_stand_height + self.cubeA_size / 2]
         cubeA_opts = gymapi.AssetOptions()
         cubeA_asset = self.gym.create_box(self.sim, *([self.cubeA_size] * 3), cubeA_opts)
@@ -458,6 +459,7 @@ class Ur5pickandplace(BaseTask):
         self._eef_lf_state = self._rigid_body_state[:, self.handles["hand_left"], :]
         self._eef_rf_state = self._rigid_body_state[:, self.handles["hand_right"], :]
         self._q = self._dof_state[..., 0]
+        self.check = self._dof_state[..., 0]
         self._cubeA_state = self._root_state[:, self._cubeA_id, :] 
         self.goal_pos = self.init_goal_pos[:,:3]
 
@@ -526,7 +528,7 @@ class Ur5pickandplace(BaseTask):
         self._refresh() #7 3      #4           #6                          #1            #7
         obs =    ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat","goal_pos"]
         states = ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat","goal_pos"]
-        #print(self.states["force"])
+        # print(self.states["force"])
         #prioperception = ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos"] #porp
         #student = ["q","eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos","all_pc"]
         self.obs_buf = torch.cat([self.states[ob] for ob in obs], dim=-1)
@@ -550,6 +552,7 @@ class Ur5pickandplace(BaseTask):
         dof_state_reset[:,:,0] = self.default_dof_pos
         self._pos_control  = self.default_dof_pos
         self._q = self._dof_state[..., 0]
+        
 
         self.gym.set_dof_state_tensor_indexed(self.sim,
                                                gymtorch.unwrap_tensor(dof_state_reset),
@@ -804,11 +807,12 @@ class Ur5pickandplace(BaseTask):
 
         # u_delta = control_ik(self._j_eef, actions[:,:6].unsqueeze(-1), self.num_envs, num_dofs=self.num_dof)
         u_delta = actuate(self.actuator_joints, self.mimic_joints, self.arm_dof, u_delta, actions[:,self.arm_dof:])
-        
-        check = (u_delta + dof_pos).clone()
-        u_offset = position_check(self.actuator_joints, self.mimic_joints, self.arm_dof, check)
-        
-        self._pos_control = (u_delta + dof_pos + u_offset)
+        u_arm_offset = self.check - dof_pos
+        # print("1",u_arm_offset)
+        self.check = (u_delta + dof_pos).clone()
+        u_offset = position_check(self.actuator_joints, self.mimic_joints, self.arm_dof, self.check)
+        # print("2",u_delta + dof_pos + u_offset)
+        self._pos_control = (u_delta + dof_pos + u_offset) #+ u_arm_offset
         
         self._pos_control = torch.clamp(self._pos_control, min=self.all_limits[0],max=self.all_limits[1])
 
