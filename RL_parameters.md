@@ -1,7 +1,7 @@
 ## RL parameters
-Edit tasks/ur5xxxx.py
-Function name: compute_reach_reward()
-The reward must lower than 0
+Edit tasks/ur5xxxx.py <br>
+Function name: compute_reach_reward() <br>
+The reward must lower than 0 <br>
 
 ```sh
 # left finger to cube (distance)
