@@ -1,11 +1,15 @@
 env:
-  taskname: "ur5cabinetdoor"
-  numEnvs: 512
+  taskname: "cabinet"
+  numEnvs: 16
   numStates: 25 #
   sim_device: "cuda:0"
   compute_device_id: 0
   graphics_device_id: 0
+  arm: 'ur5'
+  hand: 'DH'
+  sensor: 'GS'
   arm_dof: 6
+  hand_joint: 2
   actionScale: 1.0
   PCDownSampleNum: 8192
   TDownSampleNum: 64
@@ -14,7 +18,7 @@ env:
   seed: 42
 
   full_dof: 7
-  dof_config: "XYZRxRYRz"
+  dof_config: "XYZRz"
   controlFrequencyInv: 1
 
   debug: False # if debug, num_envs will be set to numDebugEnvs

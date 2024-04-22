@@ -1,8 +1,8 @@
        
-from tasks.ur5lift import Ur5lift
-from tasks.ur5pickandplace import Ur5pickandplace
-from tasks.ur5cabinet import Ur5cabinet
-from tasks.ur5cabinet_door import Ur5cabinet_door
+from tasks.lift import Lift
+from tasks.pickandplace import Pickandplace
+from tasks.cabinet import Cabinet
+from tasks.cabinet_door import Cabinet_door
 #from tasks.franka_cube_stack import FrankaCubeStack
 from tasks.base.vec_task import VecTaskCPU, VecTaskGPU, VecTaskPython, VecTaskPythonArm
 from RL.ppo.ppo import PPO
@@ -18,17 +18,17 @@ from RL.pc_vtafford.vtpolicy import vtpolicy
 def parse_task(args, env_cfg, train_cfg, sim_params):
     device_id = args.device_id
     rl_device = args.sim_device
-    if args.task == "ur5lift":
-        env = Ur5lift(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
+    if args.task == "lift":
+        env = Lift(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
         vec_env = VecTaskPython(env, rl_device)
-    elif args.task == "ur5pickandplace":
-        env = Ur5pickandplace(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
+    elif args.task == "pickandplace":
+        env = Pickandplace(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
         vec_env = VecTaskPython(env, rl_device)
-    elif args.task == "ur5cabinet":
-        env = Ur5cabinet(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
+    elif args.task == "cabinet":
+        env = Cabinet(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
         vec_env = VecTaskPython(env, rl_device)
-    elif args.task == "ur5cabinet_door":
-        env = Ur5cabinet_door(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
+    elif args.task == "cabinet_door":
+        env = Cabinet_door(env_cfg,sim_params, args.physics_engine, args.device_type, args.device_id, args.headless)
         vec_env = VecTaskPython(env, rl_device)
     
     if args.algo == 'ppo':

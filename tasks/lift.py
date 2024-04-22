@@ -20,32 +20,29 @@ import time
 from torchvision import transforms
 from pointnet2_ops import pointnet2_utils
 
-
 #import numpy as np
 
 gym_BLUE = gymapi.Vec3(0., 0., 1.)
 
-def get_UR5_asset(gym, sim, asset_root, ur5_asset_file):
-    """Create a UR5 asset with a linear slider."""
+def get_robotarm_asset(gym, sim, asset_root, asset_file):
+    """Create a robotarm asset with a linear slider."""
     asset_options = gymapi.AssetOptions()
     asset_options.armature = 0.01
     asset_options.fix_base_link = True
     asset_options.disable_gravity = True
     asset_options.flip_visual_attachments = True
-    ur5_asset = gym.load_asset(sim, asset_root, ur5_asset_file, asset_options)
-    return ur5_asset
+    robotarm_asset = gym.load_asset(sim, asset_root, asset_file, asset_options)
+    return robotarm_asset
 
-def get_cabinet_asset(gym, sim, asset_root, cabinet_asset_file):
-    """Create a UR5 asset with a linear slider."""
+def get_object_asset(gym, sim, asset_root, object_asset_file):
     asset_options = gymapi.AssetOptions()
-    asset_options.fix_base_link = True
-    asset_options.disable_gravity = True
+    asset_options.fix_base_link = False
+    asset_options.disable_gravity = False
     asset_options.flip_visual_attachments = False
-    cabinet_asset = gym.load_asset(sim, asset_root, cabinet_asset_file, asset_options)
-    return cabinet_asset
+    object_asset = gym.load_asset(sim, asset_root, object_asset_file, asset_options)
+    return object_asset
 
-
-class Ur5cabinet_door(BaseTask):
+class Lift(BaseTask):
     def __init__(self, cfg, sim_params, physics_engine, device_type, device_id, headless):
         self.cfg = cfg
         self.sim_params = sim_params
@@ -57,12 +54,11 @@ class Ur5cabinet_door(BaseTask):
         self.dof_config = cfg["env"]["dof_config"]
         self.full_dof = cfg["env"]["full_dof"]
         self.obs_type = self.cfg["env"]["obs_type"]
-        
 
         self.transforms_depth = transforms.CenterCrop((240,320))
         print(self.obs_type)
         if "oracle" in self.obs_type:    
-            self.num_obs = 25  # 20 + 7
+            self.num_obs = 28  # 20 + 7
             
         #     self.num_obs = 30+1024*3
         if "pointcloud" or "tactile" in self.obs_type:
@@ -79,22 +75,19 @@ class Ur5cabinet_door(BaseTask):
         else:
             plt.ion()
 
-        self.num_obs = 25
+        self.num_obs = 28
         if self.dof_config == "XYZRxRYRz":
             self.num_act = 7  # force applied on the pole (-1 to 1)
         elif self.dof_config == "XYZRz":
             self.num_act = 5
 
         self.reset_dist = 3.0  # when to reset
-        self.max_push_effort = 400.0  # the range of force applied to the ur5reach
+        self.max_push_effort = 400.0  # the range of force applied to the robotarmreach
         self.max_episode_length = 600  # maximum episode length
 
         self.pointCloudDownsampleNum = self.cfg["env"]["PCDownSampleNum"]
         self.sensor_downsample_num = self.cfg["env"]["TDownSampleNum"]
         self.all_downsample_num = self.pointCloudDownsampleNum + self.sensor_downsample_num * 2
-        
-        #for saving visualized pointcloud
-        self.save_pc = False
 
 
         # Tensor placeholders
@@ -106,8 +99,11 @@ class Ur5cabinet_door(BaseTask):
         self.cfg["headless"] = headless
 
         self.num_envs = self.cfg["env"]["numEnvs"]
-
+        self.arm_type = self.cfg["env"]["arm"]
+        self.hand_type = self.cfg["env"]["hand"]
+        self.sensor_type = self.cfg["env"]["sensor"]
         self.arm_dof = self.cfg["env"]["arm_dof"]
+        self.hand_joint = self.cfg["env"]["hand_joint"]
         
         self.action_scale = self.cfg["env"]["actionScale"]
 
@@ -123,6 +119,9 @@ class Ur5cabinet_door(BaseTask):
         self._j_eef = None  # Jacobian for end effector
         self._global_indices = None         # Unique indices corresponding to all envs in flattened array
         self._q = None  # Joint positions           (n_envs, n_dof)
+        self._init_obj_state = None           # Initial state of obj for the current env
+        self._obj_state = None                # Current state of obj for the current env
+        self._obj_id = None                   # Actor ID corresponding to obj for a given env
         self.start_position_noise = 0.15
         self.start_rotation_noise = 0.785
         self._pos_control = None            # Position actions
@@ -152,48 +151,39 @@ class Ur5cabinet_door(BaseTask):
         lower = gymapi.Vec3(0, 0, 0)
         upper = gymapi.Vec3(spacing, spacing, spacing)
 
-        #camera and pointcloud
-        self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
-
         #default pos
         self.default_dof_pos = to_torch(
-            [-1.57, 0, -1.57, 0, 0, 1.57, 
-             0., 0., 0., 0., 0., 0.], device=self.device
+            [-1.57, 0, -1.57, 0, 1.57, 0] +[0] * self.hand_joint
+             , device=self.device
         )
 
         self.position_limits = to_torch([[-4.,-1.5,-2.355,-0.785,-3.14,-3.14,0   ],
-                                         [-1.6,1.5, 0.,    1.5,   3.14, 3.14,0.57]], device=self.device)
+                                         [-1.6,1.5, 0.,    1.5,   3.14, 3.14,0.4]], device=self.device)
         self.osc_limits = to_torch([[-0.05,0.05,0.87],
-                                    [1.1,1.0,1.85]], device=self.device)
+                                    [0.65,0.8,1.85]], device=self.device)
         self.init_goal_pos = torch.zeros((self.num_envs, 7), dtype=torch.float, device=self.device)
 
         self.last_actions = torch.zeros((self.num_envs, self.full_dof), dtype=torch.float, device=self.device)
 
         # Set control limits
-        self.cmd_limit = to_torch([0.01, 0.01, 0.01, 0.05, 0.05, 0.05, 0.1], device=self.device).unsqueeze(0)
+        self.cmd_limit = to_torch([0.01, 0.01, 0.01, 0.05, 0.05, 0.05, 0.01], device=self.device).unsqueeze(0)
 
 
         asset_root = 'assets'
-        ur5_asset_file = 'ur5_rq_gsmini_wo_cover.urdf'
-        cabinet_asset_file = 'sektion_cabinet_2.urdf'
+        asset_file = self.arm_type+self.hand_type+self.sensor_type + '.urdf'
+        obj_asset_file = 'grasping/16/mobility.urdf'
 
-        ur5_assert = get_UR5_asset(self.gym, self.sim, asset_root, ur5_asset_file)
-        cabinet_asset = get_cabinet_asset(self.gym, self.sim, asset_root, cabinet_asset_file)
-
-        self.num_cabinet_bodies = self.gym.get_asset_rigid_body_count(cabinet_asset)
-        self.num_cabinet_shapes = self.gym.get_asset_rigid_shape_count(cabinet_asset)
-        self.num_cabinet_dofs = self.gym.get_asset_dof_count(cabinet_asset)
-
-        print("num cabinet bodies: ", self.num_cabinet_bodies)
-        print("num cabinet dofs: ", self.num_cabinet_dofs)
-
-        self.num_dof = self.gym.get_asset_dof_count(ur5_assert)
-        self.env_dofs = 16
-        ur5_dof_names = self.gym.get_asset_dof_names(ur5_assert)
+        robotarm_assert = get_robotarm_asset(self.gym, self.sim, asset_root, asset_file)
+        obj_asset = get_object_asset(self.gym, self.sim, asset_root, obj_asset_file)
         
+        self.num_dof = self.gym.get_asset_dof_count(robotarm_assert)
+        robotarm_dof_names = self.gym.get_asset_dof_names(robotarm_assert)
+
+        self.num_obj_bodies = self.gym.get_asset_rigid_body_count(obj_asset)
+        self.num_obj_shapes = self.gym.get_asset_rigid_shape_count(obj_asset)
+
         self.all_limits = torch.zeros((2,self.num_dof),device=self.device)
 
-        
         # Create table asset
         self.table_stand_height = 0.83
         table_pos = [0.30, 0.365, self.table_stand_height/2]
@@ -209,15 +199,25 @@ class Ur5cabinet_door(BaseTask):
         table_con_opts.fix_base_link = True
         table_con_asset = self.gym.create_box(self.sim, *[0.2, 0.15, table_con_height], table_opts)
 
-        self.revolute_joints, self.mimic_joints, self.actuator_joints, dof = find_joints_with_dof(asset_root, ur5_asset_file, ur5_dof_names)
+        #create cube asset
+        self.obj_size = 0.040
+        obj_pos = [0.30, 0.365, self.table_stand_height + self.obj_size / 2]
+        #obj_opts = gymapi.AssetOptions()
+        self._init_obj_state = torch.zeros((self.num_envs, 13), device=self.device)
+
+        self.revolute_joints, self.mimic_joints, self.actuator_joints, dof = find_joints_with_dof(asset_root, asset_file, robotarm_dof_names)
 
         self.all_limits = mimic_clip(self.actuator_joints, self.mimic_joints,self.arm_dof, self.all_limits, self.position_limits)
         self.num_state = 2 * self.num_dof #dof -> position speed
 
-        # define ur5reach pose
+        # define robotarmreach pose
         pose = gymapi.Transform()
-        pose.p = gymapi.Vec3(0.0, 0.0, table_con_height + self.table_stand_height)  # generate the ur5reach 1m from the ground
+        pose.p = gymapi.Vec3(0.0, 0.0, table_con_height + self.table_stand_height)  # generate the robotarmreach 1m from the ground
         pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1)
+
+        obj_start_pose = gymapi.Transform()
+        obj_start_pose.p = gymapi.Vec3(*obj_pos)
+        obj_start_pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)
 
         table_pose = gymapi.Transform()
         table_pose.p = gymapi.Vec3(*table_pos)
@@ -227,13 +227,8 @@ class Ur5cabinet_door(BaseTask):
         table_con_pose.p = gymapi.Vec3(*table_con_pos)
         table_con_pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)
 
-        cabinet_pos = [1.10, 0.4, 0.83+0.4]
-        cabinet_start_pose = gymapi.Transform()
-        cabinet_start_pose.p = gymapi.Vec3(*cabinet_pos)
-        cabinet_start_pose.r = gymapi.Quat(0.0, 0.0, 1.0, 0.0)
-
-        right_sensor_idx = self.gym.find_asset_rigid_body_index(ur5_assert, "right_box")
-        left_sensor_idx = self.gym.find_asset_rigid_body_index(ur5_assert, "left_box")
+        right_sensor_idx = self.gym.find_asset_rigid_body_index(robotarm_assert, "right_box")
+        left_sensor_idx = self.gym.find_asset_rigid_body_index(robotarm_assert, "left_box")
 
         sensor_pose1 = gymapi.Transform(gymapi.Vec3(0.0, 0.0, 0.02))
         sensor_pose2 = gymapi.Transform(gymapi.Vec3(-0.0, 0.0, 0.02))
@@ -243,12 +238,12 @@ class Ur5cabinet_door(BaseTask):
         sensor_options.enable_constraint_solver_forces = True  # for example contacts
         sensor_options.use_world_frame = False  # report forces in world frame (easier to get vertical components)
 
-        sensor_idx1 = self.gym.create_asset_force_sensor(ur5_assert, right_sensor_idx, sensor_pose1, sensor_options)
-        sensor_idx2 = self.gym.create_asset_force_sensor(ur5_assert, left_sensor_idx, sensor_pose2, sensor_options)
+        sensor_idx1 = self.gym.create_asset_force_sensor(robotarm_assert, right_sensor_idx, sensor_pose1, sensor_options)
+        sensor_idx2 = self.gym.create_asset_force_sensor(robotarm_assert, left_sensor_idx, sensor_pose2, sensor_options)
         self.net_contact_force_tensor = self.gym.acquire_net_contact_force_tensor(self.sim)
         
-        # define ur5reach dof properties
-        dof_props = self.gym.get_asset_dof_properties(ur5_assert)
+        # define robotarmreach dof properties
+        dof_props = self.gym.get_asset_dof_properties(robotarm_assert)
         dof_props["driveMode"][:self.arm_dof].fill(gymapi.DOF_MODE_POS)
         dof_props["driveMode"][self.arm_dof:self.num_dof].fill(gymapi.DOF_MODE_EFFORT)
 
@@ -258,20 +253,15 @@ class Ur5cabinet_door(BaseTask):
         dof_props["damping"][:self.arm_dof].fill(40.0)
         dof_props["damping"][self.arm_dof:self.num_dof].fill(1.0e2)
 
-        # set cabinet dof properties
-        cabinet_dof_props = self.gym.get_asset_dof_properties(cabinet_asset)
-        for i in range(self.num_cabinet_dofs):
-            cabinet_dof_props['damping'][i] = 10.0
-
-        num_robot_bodies = self.gym.get_asset_rigid_body_count(ur5_assert)
-        num_robot_shapes = self.gym.get_asset_rigid_shape_count(ur5_assert)
-        max_agg_bodies = num_robot_bodies + self.num_cabinet_bodies + 2     # 1 for table, table stand
-        max_agg_shapes = num_robot_shapes + self.num_cabinet_shapes + 2     # 1 for table, table stand
+        num_robot_bodies = self.gym.get_asset_rigid_body_count(robotarm_assert)
+        num_robot_shapes = self.gym.get_asset_rigid_shape_count(robotarm_assert)
+        self.max_agg_bodies = num_robot_bodies + 2 + self.num_obj_bodies     # 1 for table, table stand, obj
+        self.max_agg_shapes = num_robot_shapes + 2 + self.num_obj_shapes     # 1 for table, table stand, obj
 
         # generate environments
         self.envs = []
         self.targ_handles = []
-        self.ur5_handles = []
+        self.robotarm_handles = []
         self.targ_idxs = []
         print(f'Creating {self.num_envs} environments.')
 
@@ -326,10 +316,7 @@ class Ur5cabinet_door(BaseTask):
             self.sensor_pointcloud_flatten = None
 
 
-        if self.save_pc:
-            self.pc_data = torch.zeros((self.num_envs , self.pointCloudDownsampleNum, 3), device=self.device)
-        else:
-            self.pc_data = None
+
 
         if self.point_cloud_debug:
             import open3d as o3d
@@ -346,17 +333,24 @@ class Ur5cabinet_door(BaseTask):
             env_ptr = self.gym.create_env(self.sim, lower, upper, num_per_row)
 
             if self.aggregate_mode >= 1:
-                self.gym.begin_aggregate(env_ptr, max_agg_bodies, max_agg_shapes, True)
-            # add ur5reach here in each environment
-            ur5_handle = self.gym.create_actor(env_ptr, ur5_assert, pose, "ur5reach", i, 1, 0)
-            self.ur5_handles.append(ur5_handle)
+                self.gym.begin_aggregate(env_ptr, self.max_agg_bodies, self.max_agg_shapes, True)
+            # add robotarmreach here in each environment
+            robotarm_handle = self.gym.create_actor(env_ptr, robotarm_assert, pose, "robotarmreach", i, 1, 0)
+            self.robotarm_handles.append(robotarm_handle)
 
-            self.gym.set_actor_dof_properties(env_ptr, ur5_handle, dof_props)
+            self.gym.set_actor_dof_properties(env_ptr, robotarm_handle, dof_props)
 
             table_actor = self.gym.create_actor(env_ptr, table_asset, table_pose, "table", i, 0, 0)
             table_con_actor = self.gym.create_actor(env_ptr, table_con_asset, table_con_pose, "table_con", i, 1, 0)
-            cabinet_actor = self.gym.create_actor(env_ptr, cabinet_asset, cabinet_start_pose, "cabinet", i, 2, 0)
 
+            #self._obj_id = self.gym.create_actor(env_ptr, obj_asset, obj_start_pose, "obj", i, 0, 0)
+            self._obj_id = self.gym.create_actor(env_ptr, obj_asset, obj_start_pose, "obj", i, 0, 0)
+
+            #obj props
+            object_props = self.gym.get_actor_rigid_body_properties(env_ptr, self._obj_id)
+            object_props[0].mass = 0.1
+            self.gym.set_actor_rigid_body_properties(env_ptr, self._obj_id, object_props)
+            #self.gym.set_rigid_body_color(env_ptr, self._obj_id, 0, gymapi.MESH_VISUAL, obj_color)
 
             #camera
             if "pointcloud" in self.obs_type or "tactile" in self.obs_type:
@@ -367,7 +361,7 @@ class Ur5cabinet_door(BaseTask):
 
             if  "pointcloud" in self.obs_type:
                 camera_handle = self.gym.create_camera_sensor(env_ptr, self.camera_props)
-                self.gym.set_camera_location(camera_handle, env_ptr, gymapi.Vec3(0.2, 0.8, self.table_stand_height+0.7), gymapi.Vec3(0.7, 0.3, self.table_stand_height+0.2))
+                self.gym.set_camera_location(camera_handle, env_ptr, gymapi.Vec3(0.64, 0.485, self.table_stand_height+0.5), gymapi.Vec3(0.1, 0.4, self.table_stand_height))
                 camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_ptr, camera_handle, gymapi.IMAGE_DEPTH)
                 torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor)
                 cam_vinv = torch.inverse((torch.tensor(self.gym.get_camera_view_matrix(self.sim, env_ptr, camera_handle)))).to(self.device)
@@ -385,7 +379,7 @@ class Ur5cabinet_door(BaseTask):
                 # sensor_camera
 
                 sensor_handle_1 = self.gym.create_camera_sensor(env_ptr, self.sensors_camera_props)
-                right_sensor_handle = self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "right_box")
+                right_sensor_handle = self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "right_box")
                 camera_offset1 = gymapi.Vec3(0.0, -0.00, 0.00)
                 camera_rotation1 = gymapi.Quat.from_axis_angle(gymapi.Vec3(0.0, 1.0, 0.0), np.deg2rad(-90))
                 actor_handle1 = self.gym.get_actor_handle(env_ptr, 0)
@@ -399,7 +393,7 @@ class Ur5cabinet_door(BaseTask):
 
                 # 创建相机 handle sensor_camera
                 sensor_handle_2 = self.gym.create_camera_sensor(env_ptr, self.sensors_camera_props)
-                left_sensor_handle = self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "left_box")
+                left_sensor_handle = self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "left_box")
                 camera_offset2 = gymapi.Vec3(0.0, -0.00, 0.00)
                 camera_rotation2 = gymapi.Quat.from_axis_angle(gymapi.Vec3(0.0, 1.0, 0.0), np.deg2rad(-90))
                 actor_handle2 = self.gym.get_actor_handle(env_ptr, 0)
@@ -421,21 +415,21 @@ class Ur5cabinet_door(BaseTask):
 
     def init_data(self):
         env_ptr = self.envs[0] 
-        ur5_handle = 0
+        robotarm_handle = 0
         #check your urdf
-        num_ur5_rigid_bodies = self.gym.get_actor_rigid_body_count(env_ptr, ur5_handle)
+        num_robotarm_rigid_bodies = self.gym.get_actor_rigid_body_count(env_ptr, robotarm_handle)
         
 
         self.handles = {
-            # Ur5
-            "hand": self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "ee_link"),
-            "hand_left": self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "left_box"),
-            "hand_right": self.gym.find_actor_rigid_body_handle(env_ptr, ur5_handle, "right_box"),
+            # robotarm
+            "hand": self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "ee_link"),
+            "hand_left": self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "left_box"),
+            "hand_right": self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "right_box"),
 
         }
-
+        #print(self.handles)
         #for sensor index
-        #num_rigid_bodies = num_ur5_rigid_bodies + 3 #table tablestand 
+        #num_rigid_bodies = num_robotarm_rigid_bodies + 3 #table tablestand cube
         # self.index_rigid_bodies = {
         #     "hand": [self.handles["hand"] + i * num_rigid_bodies - 1 for i in range(self.num_envs)],
         #     "hand_left": [self.handles["hand_left"] + i * num_rigid_bodies -1 for i in range(self.num_envs)],
@@ -444,7 +438,11 @@ class Ur5cabinet_door(BaseTask):
 
         # Setup tensor buffers
         _actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)  #including objs
-        self.init_cabinet_pos = torch.tensor([1.10, 0.4, 0.83+0.4],device = self.device)
+        self._init_obj_state[:, :3] = torch.tensor([0.30, 0.365, self.table_stand_height + self.obj_size / 2], device=self.device)
+        self._init_obj_state[:, 6] = torch.tensor([1], device=self.device)
+
+        self.init_goal_pos[:,:3] = to_torch([0.30, 0.365, self.table_stand_height + self.obj_size / 2 + 0.5], device=self.device)
+        self.init_goal_pos[:,6] = to_torch([1], device=self.device)    
 
         _dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)      #only dof
         _rigid_body_state_tensor = self.gym.acquire_rigid_body_state_tensor(self.sim)  #arm_hand
@@ -459,32 +457,25 @@ class Ur5cabinet_door(BaseTask):
         # linear velocity([7:10]), and angular velocity([10:13]).
 
 
-        self.init_goal_pos[:,:3] = to_torch([0.75, 0.43, self.table_stand_height + 0.45], device=self.device)
-        self.init_goal_pos[:,6] = to_torch([1], device=self.device)    
-        self.goal_pos = self.init_goal_pos[:,:3]
-
         self._root_state = gymtorch.wrap_tensor(_actor_root_state_tensor).view(self.num_envs, -1, 13)
         self._dof_state = gymtorch.wrap_tensor(_dof_state_tensor).view(self.num_envs, -1, 2)  #pos speed
-        self.ur5_dof_state = self._dof_state.view(self.num_envs, -1, 2)[:, :self.num_dof]
-        self.ur5_dof_pos = self.ur5_dof_state[..., 0]
-        self.ur5_dof_vel = self.ur5_dof_state[..., 1]
-        self.cabinet_dof_state = self._dof_state.view(self.num_envs, -1, 2)[:, self.num_dof:]
-        self.cabinet_dof_pos = self.cabinet_dof_state[..., 0]
-        self.cabinet_dof_vel = self.cabinet_dof_state[..., 1]
-
         self._rigid_body_state = gymtorch.wrap_tensor(_rigid_body_state_tensor).view(self.num_envs, -1, 13)
 
         self._eef_state = self._rigid_body_state[:, self.handles["hand"], :]
         self._eef_lf_state = self._rigid_body_state[:, self.handles["hand_left"], :]
         self._eef_rf_state = self._rigid_body_state[:, self.handles["hand_right"], :]
+        self._q = self._dof_state[..., 0]
+        self._obj_state = self._root_state[:, self._obj_id, :] 
+        self.goal_pos = self.init_goal_pos[:,:3]
 
-        _jacobian = self.gym.acquire_jacobian_tensor(self.sim, "ur5reach")
+        _jacobian = self.gym.acquire_jacobian_tensor(self.sim, "robotarmreach")
         jacobian = gymtorch.wrap_tensor(_jacobian)
 
         self._j_eef = jacobian[:, self.arm_dof, :, :]
 
         # Initialize actions
-        self._pos_control = torch.zeros((self.num_envs, self.env_dofs), dtype=torch.float, device=self.device)
+        self._pos_control = torch.zeros((self.num_envs, self.num_dof), dtype=torch.float, device=self.device)
+        self.check_arm = torch.zeros((self.num_envs, self.num_dof), dtype=torch.float, device=self.device)
         self.touch_rate = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
 
         self.actions = torch.zeros((self.num_envs, self.full_dof), dtype=torch.float, device=self.device) #full dof
@@ -495,22 +486,24 @@ class Ur5cabinet_door(BaseTask):
 
     def _update_states(self):
         self.states.update({
-            "ur5_dof_pos": self.ur5_dof_pos[:, :7],
-            "ee_pos": self._eef_state[:, :3],  #3
-            "ee_quat": self._eef_state[:, 3:7],  #4
-            "ee_lin_vel": self._eef_state[:, 7:10],  #3
-            "ee_ang_vel": self._eef_state[:, 10:13],  #3
+            "q": self._q[:, :7],
+            "eef_pos": self._eef_state[:, :3],  #3
+            "eef_quat": self._eef_state[:, 3:7],  #4
+            "eef_lin_vel": self._eef_state[:, 7:10],  #3
+            "eef_ang_vel": self._eef_state[:, 10:13],  #3
             "middle_gripper_state": (self._eef_lf_state[:,:3] + self._eef_rf_state[:,:3]) / 2. ,
-            "ee_lf_pos": self._eef_lf_state[:, :3],   #3
+            "eef_lf_pos": self._eef_lf_state[:, :3],   #3
             #"eef_lf_quat": self._eef_lf_state[:, 3:7],   #4
-            "ee_rf_pos": self._eef_rf_state[:, :3], #3
+            "eef_rf_pos": self._eef_rf_state[:, :3], #3
+            #"eef_rf_quat": self._eef_rf_state[:, 3:7],   #4
             "goal_pos": self.goal_pos[:, :3],
-            #"eef_rf_quat": self._eef_rf_state[:, 3:7],   #
+            "cube_pos": self._obj_state[:, :3],
+            "cube_quat": self._obj_state[:, 3:7],
+            "cube_pos_relative": self._obj_state[:, :3] - self._eef_state[:, :3],
             "last_actions": self.last_actions,  #7
             "all_pc": self.all_pointcloud,
             "touch_rate":self.touch_rate,
-            "force": self._contact_forces,
-            "cabinet_dof_pos": self.cabinet_dof_pos[:,0].unsqueeze(1)
+            "force": self._contact_forces
         })    
 
 
@@ -525,22 +518,24 @@ class Ur5cabinet_door(BaseTask):
         #self.gym.refresh_force_sensor_tensor(self.sim)
         if "pointcloud" in self.obs_type or "tactile" in self.obs_type:
             self.compute_point_cloud_observation()
-
         self.compute_contact_force()
         self._update_states()
         
 
 
     def compute_reward(self):
-        self.rew_buf[:], self.reset_buf[:], self.successes[:] = compute_reach_reward(   self.reset_buf,
+        self.rew_buf[:], self.reset_buf[:], self.success_buf[:] = compute_reach_reward(   self.reset_buf,
                                                                         self.progress_buf,
                                                                         self.states,
                                                                         self.max_episode_length)
 
     def compute_observations(self):
-        self._refresh() #7 3      #4           #6                          #1            #3           #4
-        obs =    ["ur5_dof_pos", "ee_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos"]
-        states = ["ur5_dof_pos", "ee_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos"]
+        self._refresh() #7    3      #4           #3           #3               #1            #7
+        obs =    ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat"]
+        states = ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat"]
+        #print(self.states["force"])
+        #prioperception = ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos"] #porp
+        #student = ["q","eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos","all_pc"]
         self.obs_buf = torch.cat([self.states[ob] for ob in obs], dim=-1)
         self.states_buf = torch.cat([self.states[state] for state in states], dim=-1)
         self.pointcloud_buf = self.states["all_pc"]
@@ -549,37 +544,39 @@ class Ur5cabinet_door(BaseTask):
 
     def reset(self, env_ids):
 
-        multi_ur5_ids_int32 = self._global_indices[env_ids, 0].flatten()
-        multi_cabinet_ids_int32 = self._global_indices[env_ids, 3].flatten()
-        multi_env_ids_int32 = torch.cat((multi_ur5_ids_int32,multi_cabinet_ids_int32),dim=0)
+        multi_env_ids_int32 = self._global_indices[env_ids, 0].flatten()
 
-        self.ur5_dof_pos[env_ids, :] = self.default_dof_pos                          
-        self.ur5_dof_vel[env_ids, :] = torch.zeros_like(self.ur5_dof_vel[env_ids])  
-        self._pos_control[env_ids, :self.num_dof] = self.default_dof_pos             #dof_state
 
-        # reset cabinet
-        self.cabinet_dof_state[env_ids, :] = torch.zeros_like(self.cabinet_dof_state[env_ids])  #dof_state
+        sampled_cube_state = self._random_obj_state(self._init_obj_state, env_ids)
+        #sampled_cube_state = self._init_obj_state
 
-        # self.gym.set_dof_position_target_tensor_indexed(self.sim,
-        #                                                 gymtorch.unwrap_tensor(self._pos_control),
-        #                                                 gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
+        #sampled_goal_state = self._random_goal_state(self.init_goal_pos)
+        sampled_goal_state = self.init_goal_pos
+       
+        dof_state_reset = torch.zeros_like(self._dof_state, device=self.device)
+        dof_state_reset[:,:,0] = self.default_dof_pos
+        self._pos_control  = self.default_dof_pos
+
+        #self.check_arm.fill(self.default_dof_pos
+        self._q = self._dof_state[..., 0]
 
         self.gym.set_dof_state_tensor_indexed(self.sim,
-                                               gymtorch.unwrap_tensor(self._dof_state),
+                                               gymtorch.unwrap_tensor(dof_state_reset),
                                                gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
+
+        self._root_state[env_ids, self._obj_id, :] = sampled_cube_state[env_ids,:]  #TODO:debug
  
-        # # # #self.goal_pos = sampled_goal_state
-
-
-        # self.gym.set_actor_root_state_tensor_indexed(
-        #     self.sim, gymtorch.unwrap_tensor(self._root_state),
-        #     gymtorch.unwrap_tensor(multi_cabinet_ids_int32), len(multi_cabinet_ids_int32))
+        self.goal_pos = sampled_goal_state
+        multi_env_ids_cubes_int32 = self._global_indices[env_ids, -1:].flatten()
+        self.gym.set_actor_root_state_tensor_indexed(
+            self.sim, gymtorch.unwrap_tensor(self._root_state),
+            gymtorch.unwrap_tensor(multi_env_ids_cubes_int32), len(multi_env_ids_cubes_int32))
 
         #print(self.goal_pos)
         # clear up desired buffer states
         self.reset_buf[env_ids] = 0
         self.progress_buf[env_ids] = 0
-        self.successes[env_ids] = 0
+        self.success_buf[env_ids] = 0
 
         self._refresh()
         # refresh new observation after reset
@@ -587,7 +584,7 @@ class Ur5cabinet_door(BaseTask):
         # 
     
     def compute_contact_force(self):
-        net_contact_force = gymtorch.wrap_tensor(self.net_contact_force_tensor).view(self.num_envs, 33, 3)
+        net_contact_force = gymtorch.wrap_tensor(self.net_contact_force_tensor).view(self.num_envs, self.max_agg_bodies, 3)
         # 计算总接触力
         left_contact_force = net_contact_force[:, self.handles["hand_left"], :]
         right_contact_force = net_contact_force[:, self.handles["hand_right"], :]
@@ -648,19 +645,22 @@ class Ur5cabinet_door(BaseTask):
 
 
                     #contact_force = np.dot(cam_vinv.cpu().numpy()[:3, :3], left_contact_force.reshape(3, 1))[2]
-                    contact_force_tensor = torch.tensor(1).to(self.device)
+                    #contact_force_tensor = torch.tensor(1).to(self.device)
 
                     cam_proj = torch.tensor(self.gym.get_camera_proj_matrix(self.sim, self.envs[i], self.sensors[real_index]),
                                             device=self.device)
-
+                    #print(cam_proj)
                     camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, self.envs[i],
                                                                         self.sensors[real_index], gymapi.IMAGE_DEPTH)
+ 
                     torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor)
-                    torch_cam_tensor = self.transforms_depth(torch_cam_tensor) * contact_force_tensor
+
+                    torch_cam_tensor = self.transforms_depth(torch_cam_tensor) #* contact_force_tensor
 
                     points = sensor_depth_image_to_point_cloud_GPU(torch_cam_tensor, cam_vinv,
                                                     cam_proj, self.sensor_u2, self.sensor_v2,
                                                     self.sensor_width, self.sensor_height, 0.1, self.device).contiguous()
+                    #print(points)
                     if points.numel() != 0:
                         points = self.sample_points(points, sample_num=self.sensor_downsample_num, sample_mathed='random')
                         # 存储points pair
@@ -798,32 +798,29 @@ class Ur5cabinet_door(BaseTask):
         
         if len(env_ids) > 0:
             self.reset(env_ids)
-        # apply action
-        #actions = torch.zeros_like(actions,device=self.device)  #test
 
+        # apply safe action
         actions = self.actions * self.cmd_limit / self.action_scale 
-        #print(ee_end_state)
-        #print(quat2euler(self.states["eef_quat"]))
         actions[:,:3] = self.safety_check(actions[:,:3], self.states["middle_gripper_state"], self.osc_limits)
          
-        
-        arm_dof_pos = self._dof_state[:,:self.num_dof,0]
-        #check = dof_pos.clone()
+        #get dof state
+        _dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
+        dof_states = gymtorch.wrap_tensor(_dof_state_tensor).view(self.num_envs,self.num_dof,2)
+        dof_pos = dof_states[:,:,0]
 
+        #hand and arm control
         num_envs_tensor = torch.tensor(self.num_envs)
         num_dof_tensor = torch.tensor(self.num_dof)
-
         u_delta = control_ik(self._j_eef, actions[:,:6].unsqueeze(-1), num_envs_tensor, num_dofs=num_dof_tensor)
-
-        # u_delta = control_ik(self._j_eef, actions[:,:6].unsqueeze(-1), self.num_envs, num_dofs=self.num_dof)
         u_delta = actuate(self.actuator_joints, self.mimic_joints, self.arm_dof, u_delta, actions[:,self.arm_dof:])
-        
-        check = (u_delta + arm_dof_pos).clone()
+
+        #Check hand control
+        check = (u_delta + dof_pos).clone()
         u_offset = position_check(self.actuator_joints, self.mimic_joints, self.arm_dof, check)
-        
-        self._pos_control[:,:self.num_dof] = (u_delta + arm_dof_pos + u_offset)
-        self._pos_control[:,:self.num_dof] = torch.clamp(self._pos_control[:,:self.num_dof], min=self.all_limits[0],max=self.all_limits[1])
-        #self._pos_control[:,self.num_dof:] = 0
+
+        #final control results
+        self._pos_control = (u_delta + dof_pos + u_offset)
+        self._pos_control = torch.clamp(self._pos_control, min=self.all_limits[0],max=self.all_limits[1])
 
         self.gym.set_dof_position_target_tensor(self.sim, gymtorch.unwrap_tensor(self._pos_control))
 
@@ -835,6 +832,31 @@ class Ur5cabinet_door(BaseTask):
 
         self.compute_observations()
         self.compute_reward()
+        
+    def _random_obj_state(self, _init_obj_state, env_ids):
+        #_init_obj_state [num_envs, 13]
+
+        centered_cube_xy_state = torch.tensor([0.30, 0.365, 0.83], device=self.device, dtype=torch.float32)
+        _init_obj_state[env_ids, 2] = self.table_stand_height + self.obj_size / 2
+        _init_obj_state[env_ids, :2] = centered_cube_xy_state[0:2] + 2.0 * self.start_position_noise * \
+                                        (torch.rand(len(env_ids), 2, device=self.device) - 0.5)
+
+        # Sample rotation value
+
+        aa_rot = torch.zeros(len(env_ids), 3, device=self.device)
+        aa_rot[:, 2] = 2.0 * self.start_rotation_noise * (torch.rand(len(env_ids), device=self.device) - 0.5)
+        _init_obj_state[env_ids, 3:7] = quat_mul(axisangle2quat(aa_rot), _init_obj_state[env_ids, 3:7])
+        return _init_obj_state
+    
+    def _random_goal_state(self, init_goal_state):
+        centered_goal_xy_state = torch.tensor([0.30, 0.365, 1.36], device=self.device, dtype=torch.float32)
+        init_goal_state[:, 2] = self.table_stand_height + self.obj_size / 2 + 0.5
+        init_goal_state[:, :2] = centered_goal_xy_state[0:2] + 0.5 * self.start_position_noise * \
+                                        (torch.rand(self.num_envs, 2, device=self.device) - 0.5)
+        return init_goal_state
+
+
+   
 
 # define reward function using JIT
 @torch.jit.script
@@ -853,28 +875,33 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
 
     # type: (Tensor, Tensor, Dict[str, Tensor], float) -> Tuple[Tensor, Tensor, Tensor]
     
+    d_lf = torch.norm(states["cube_pos"] - states["eef_lf_pos"], dim=-1)
+    d_rf = torch.norm(states["cube_pos"] - states["eef_rf_pos"], dim=-1)
+    d_ff = torch.norm(states["eef_lf_pos"] - states["eef_rf_pos"], dim=-1)
     #touch_rate = states["touch_rate"].squeeze(1)
-    d_lf = torch.norm(states["goal_pos"] - states["ee_lf_pos"], dim=-1)
-    d_rf = torch.norm(states["goal_pos"] - states["ee_rf_pos"], dim=-1)
-    d_ff = torch.norm(states["ee_lf_pos"] - states["ee_rf_pos"], dim=-1)
-
-    d_cabinet = torch.abs(states["cabinet_dof_pos"].squeeze(1))
-    #print(d_cabinet)
+    
     force = states["force"].squeeze(1)
+    #print(force)
+    #goal_reward = torch.norm(states["goal_pos"] - states["cube_pos"], dim=-1)
+    #print(d_lf)
+    #print(d_rf)
+    # reward for lifting obj
+    obj_height = states["cube_pos"][:, 2] - 0.86
+    obj_lifted = obj_height > 0.01
+    obj_reached = obj_height > 0.1
+    #obj_unreached = obj_height < 0.1
+    #obj_droped = obj_height < -0.01
+    success_buf = obj_reached
     force[force > 200] = 200
-    touch = force > 0
-    goal = d_cabinet > 0.3
-    close = d_cabinet < 0.01
 
-    rew_buf =   - 0.6 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * close \
-                + touch * 0.1 \
-                + torch.tanh(3 * d_cabinet) * 0.5 \
-                + goal * 600
+    rew_buf = - 0.3 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) + obj_lifted * obj_height * 2\
+                + obj_reached * 100 \
+                + force * 0.0005
+    
+                    
 
     #reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (rewards > 0.8), torch.ones_like(reset_buf), reset_buf)
-    reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | goal, torch.ones_like(reset_buf), reset_buf)
-    success_buf = goal
-
+    reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (obj_reached), torch.ones_like(reset_buf), reset_buf)
     return rew_buf, reset_buf, success_buf
 
 @torch.jit.script

@@ -1,11 +1,15 @@
 env:
-  taskname: "ur5pickandplace"
-  numEnvs: 512
+  taskname: "pickandplace"
+  numEnvs: 16
   numStates: 31 #
   sim_device: "cuda:0"
   compute_device_id: 0
   graphics_device_id: 0
+  arm: 'ur5'
+  hand: 'DH'
+  sensor: 'GS'
   arm_dof: 6
+  hand_joint: 2
   actionScale: 1.0
   PCDownSampleNum: 8192
   TDownSampleNum: 64

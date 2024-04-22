@@ -1,15 +1,19 @@
 env:
-  taskname: "ur5cabinet"
-  numEnvs: 512
-  numStates: 25 #
+  taskname: 'lift'
+  numEnvs: 4
+  numStates: 28 #
   sim_device: "cuda:0"
   compute_device_id: 0
   graphics_device_id: 0
+  arm: 'ur5'
+  hand: 'DH'
+  sensor: 'GS'
   arm_dof: 6
+  hand_joint: 2
   actionScale: 1.0
   PCDownSampleNum: 8192
   TDownSampleNum: 64
-  obs_type: ["oracle"]    #["oracle","pointcloud","tactile"]  
+  obs_type: ["oracle","pointcloud","tactile"]          #["oracle","pointcloud","tactile"]  
   aggregateMode: 1
   seed: 42
 
