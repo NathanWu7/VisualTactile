@@ -4,7 +4,6 @@ import h5py
 import urx
 import cv2
 import time
-#from action_transformation import *
 import threading
 import pybullet as pb
 import math
@@ -38,7 +37,7 @@ def robot_reset():
 
 
 def action_limits(actions):
-    max_xyz_vel,min_xyz_vel = 0.1,-0.1
+    max_xyz_vel,min_xyz_vel = 1.0,-1.0
     max_rpy_bel,min_rpy_vel = 5.0*3.14/180,-5.0*3.14/180
     max_close_vel,min_close_vel = 0.02,-0.02
     # 使用NumPy的clip函数将数组限制在范围内
@@ -211,6 +210,7 @@ if __name__ == "__main__":
         action = [limited_action[i]*cmd_limit[i] for i in range(7)]
         encoded_action = encode_TCP_frame_actions(action,action_mode='xyzrz')
         delta_action = encoded_action
+        print(delta_action)
         real_action = goal_pose(delta_action)
         if robot_pose_check(real_action):
             # robot.movel([real_action[0],real_action[1],real_action[2],real_action[3],real_action[4],real_action[5]],0.5,0.01)
@@ -232,7 +232,7 @@ if __name__ == "__main__":
         lf_pose,rf_pose = finger_sensor_pose(robot.getl(),grasp_num)
         #现实观测量对应到仿真
         # current_pose = robot_tcp_real_to_sim(current_pose)
-        #lf_pose,rf_pose = finger_pose_real_to_sim(lf_pose,rf_pose)
+        # lf_pose,rf_pose = finger_pose_real_to_sim(lf_pose,rf_pose)
         # robot_j = robot_j_real_to_sim()
 
         # print(i,current_pose[:3])
