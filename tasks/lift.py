@@ -54,16 +54,11 @@ class Lift(BaseTask):
         self.dof_config = cfg["env"]["dof_config"]
         self.full_dof = cfg["env"]["full_dof"]
         self.obs_type = self.cfg["env"]["obs_type"]
+        self.num_obs = cfg["env"]["numObservations"]
 
-        self.transforms_depth = transforms.CenterCrop((240,320))
-        print(self.obs_type)
-        if "oracle" in self.obs_type:    
-            self.num_obs = 28  # 20 + 7
-            
-        #     self.num_obs = 30+1024*3
+ 
+        self.num_obs = cfg["env"]["numObservations"]
         if "pointcloud" or "tactile" in self.obs_type:
-            
-        # task-specific parameters
             self.point_cloud_debug = self.cfg["env"]["Pointcloud_Visualize"]
             self.camera_view_debug = self.cfg["env"]["Camera_Visualize"]
         else: 
@@ -75,19 +70,12 @@ class Lift(BaseTask):
         else:
             plt.ion()
 
-        self.num_obs = 28
         if self.dof_config == "XYZRxRYRz":
             self.num_act = 7  # force applied on the pole (-1 to 1)
         elif self.dof_config == "XYZRz":
             self.num_act = 5
 
-        self.reset_dist = 3.0  # when to reset
-        self.max_push_effort = 400.0  # the range of force applied to the robotarmreach
-        self.max_episode_length = 600  # maximum episode length
-
-        self.pointCloudDownsampleNum = self.cfg["env"]["PCDownSampleNum"]
-        self.sensor_downsample_num = self.cfg["env"]["TDownSampleNum"]
-        self.all_downsample_num = self.pointCloudDownsampleNum + self.sensor_downsample_num * 2
+        self.max_episode_length = cfg["env"]["episodeLength"] # maximum episode length
 
 
         # Tensor placeholders
@@ -99,11 +87,6 @@ class Lift(BaseTask):
         self.cfg["headless"] = headless
 
         self.num_envs = self.cfg["env"]["numEnvs"]
-        self.arm_type = self.cfg["env"]["arm"]
-        self.hand_type = self.cfg["env"]["hand"]
-        self.sensor_type = self.cfg["env"]["sensor"]
-        self.arm_dof = self.cfg["env"]["arm_dof"]
-        self.hand_joint = self.cfg["env"]["hand_joint"]
         
         self.action_scale = self.cfg["env"]["actionScale"]
 
@@ -150,23 +133,24 @@ class Lift(BaseTask):
         # define environment space (for visualisation)
         lower = gymapi.Vec3(0, 0, 0)
         upper = gymapi.Vec3(spacing, spacing, spacing)
+        self.transforms_depth = transforms.CenterCrop((self.sensor_cam_height,self.sensor_cam_width))
 
         #default pos
         self.default_dof_pos = to_torch(
-            [-1.57, 0, -1.57, 0, 1.57, 0] +[0] * self.hand_joint
+            self.arm_default_dof_pos +[0] * self.hand_joint
              , device=self.device
         )
 
-        self.position_limits = to_torch([[-4.,-1.5,-2.355,-0.785,-3.14,-3.14,0   ],
-                                         [-1.6,1.5, 0.,    1.5,   3.14, 3.14,0.4]], device=self.device)
-        self.osc_limits = to_torch([[-0.05,0.05,0.87],
-                                    [0.65,0.8,1.85]], device=self.device)
+        self.position_limits = to_torch([self.dof_limits_low,
+                                         self.dof_limits_high], device=self.device)
+        self.osc_limits = to_torch([self.osc_limits_low,
+                                    self.osc_limits_high], device=self.device)
         self.init_goal_pos = torch.zeros((self.num_envs, 7), dtype=torch.float, device=self.device)
 
         self.last_actions = torch.zeros((self.num_envs, self.full_dof), dtype=torch.float, device=self.device)
 
         # Set control limits
-        self.cmd_limit = to_torch([0.01, 0.01, 0.01, 0.05, 0.05, 0.05, 0.01], device=self.device).unsqueeze(0)
+        self.cmd_limit = to_torch(self.control_limits, device=self.device).unsqueeze(0)
 
 
         asset_root = 'assets'
@@ -266,7 +250,7 @@ class Lift(BaseTask):
         print(f'Creating {self.num_envs} environments.')
 
 
-        self.all_pointcloud = torch.zeros((self.num_envs, self.all_downsample_num, 3), device=self.device)
+        self.all_pointcloud = torch.zeros((self.num_envs, self.pointcloud_size, 3), device=self.device)
         if  "pointcloud" in self.obs_type:
 
             self.cameras = []
@@ -294,15 +278,15 @@ class Lift(BaseTask):
 
         
         if "tactile" in self.obs_type:
-            self.sensors = []     # 包含所有 sensors
+            self.sensors = []     # ALL sensors
             self.projs = []
             self.vinvs = []
             self.visualizers = []
-            self.sensor_width = 320  # 1.65 320
-            self.sensor_height = 240
+            self.sensor_width = self.sensor_cam_width 
+            self.sensor_height = self.sensor_cam_height
             self.sensors_camera_props = gymapi.CameraProperties()
             self.sensors_camera_props.enable_tensors = True
-            self.sensors_camera_props.horizontal_fov = 56
+            self.sensors_camera_props.horizontal_fov = self.sensor_cam_horizontal_fov
             self.sensors_camera_props.width = self.sensor_width
             self.sensors_camera_props.height = self.sensor_height
             
@@ -602,7 +586,7 @@ class Lift(BaseTask):
         point_clouds = torch.zeros((self.num_envs, self.pointCloudDownsampleNum, 3), device=self.device)
         #sensors_point_clouds = torch.zeros((self.num_envs, 2 * self.sensor_downsample_num, 3), device=self.device)
         sensors_point_clouds = self.env_origin.unsqueeze(1).repeat(1,2 * self.sensor_downsample_num,1).to(self.device)
-        #all_point_clouds = torch.zeros((self.num_envs, self.all_downsample_num, 3), device=self.device)
+        #all_point_clouds = torch.zeros((self.num_envs, self.pointcloud_size, 3), device=self.device)
 
         for i in range(self.num_envs):
             

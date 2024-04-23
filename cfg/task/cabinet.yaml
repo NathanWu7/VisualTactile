@@ -2,15 +2,28 @@ env:
   taskname: "cabinet"
   numEnvs: 16
   numStates: 25 #
+  numObservations: 28
+  episodeLength: 600
+
   sim_device: "cuda:0"
   compute_device_id: 0
   graphics_device_id: 0
+
   arm: 'ur5'
   hand: 'DH'
   sensor: 'GS'
   arm_dof: 6
   hand_joint: 2
-  actionScale: 1.0
+  
+  dof_limits_low: [-4.,-1.5,-2.355,-0.785,-3.14,-3.14,0   ]
+  dof_limits_high: [-1.6,1.5, 0.,    1.5,   3.14, 3.14,0.4]
+  osc_limits_low: [-0.05,0.05,0.87]  #for env
+  osc_limits_high: [1.1,1.0,1.85]
+  arm_default_dof_pos: [-1.57, 0, -1.57, 0, 0, 1.57]
+  control_step_limits: [0.01, 0.01, 0.01, 0.05, 0.05, 0.05, 0.01]
+
+
+  actionScale: 1.0 #for RL
   PCDownSampleNum: 8192
   TDownSampleNum: 64
   obs_type: ["oracle"]    #["oracle","pointcloud","tactile"]  

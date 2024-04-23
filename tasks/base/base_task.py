@@ -40,7 +40,7 @@ class BaseTask():
             self.graphics_device_id = -1
 
         self.debug = cfg["env"]["debug"]
-        
+
         if self.debug:
             self.num_envs = cfg["env"]["numDebugEnvs"]
         else:
@@ -61,7 +61,29 @@ class BaseTask():
         self.dof_config = cfg["env"]["dof_config"]
         self.full_dof = cfg["env"]["full_dof"]
         self.task_name = cfg["env"]["taskname"]
-         
+        self.arm_type = cfg["env"]["arm"]
+        self.hand_type = cfg["env"]["hand"]
+        self.sensor_type = cfg["env"]["sensor"]
+
+        #TODO add more sensors
+        if self.sensor_type == "GS":
+            self.sensor_cam_width = 320
+            self.sensor_cam_height = 240
+            self.sensor_cam_horizontal_fov = 56
+        elif self.sensor_type == "DG":
+            pass
+
+
+        self.arm_dof = cfg["env"]["arm_dof"]
+        self.hand_joint = cfg["env"]["hand_joint"]
+
+        self.dof_limits_low = cfg["env"]["dof_limits_low"]
+        self.dof_limits_high = cfg["env"]["dof_limits_high"]
+        self.osc_limits_low = cfg["env"]["osc_limits_low"]
+        self.osc_limits_high = cfg["env"]["osc_limits_high"]
+        self.arm_default_dof_pos = cfg["env"]["arm_default_dof_pos"]
+        self.control_limits = cfg["env"]["control_step_limits"]
+
         self.actions = torch.zeros((self.num_envs, self.full_dof), device = self.device, dtype = torch.float)
         # optimization flags for pytorch JIT
         # torch._C._jit_set_profiling_mode(False)
