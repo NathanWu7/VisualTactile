@@ -35,6 +35,7 @@ class TEST:
                 # print("cube_x",current_obs[:,21])
                 # print("cube_y",current_obs[:,22])
                 # print("cube_z",current_obs[:,23])
+                print("force",current_obs[:,20])
                 z_dist = (current_obs[:,23] -0.01 - (current_obs[:,16] + current_obs[:,19]) / 2)
                 #print(current_obs[:,23])
                 # PID policy
@@ -65,7 +66,6 @@ class TEST:
                 next_obs, rews, dones, success, infos = self.vec_env.step(actions)
                 next_states = self.vec_env.get_state()
                 #print(next_states.shape)
-                #print(rews.mean())
                 counter[dones==1] = 0
                 #print(next_obs[:,])
 
