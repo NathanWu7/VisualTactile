@@ -1,0 +1,14 @@
+/run
+/log
+*.pyc
+log*.txt
+build/
+.idea/
+*.xml
+*.iml
+*.yaml
+.#*
+.cache*
+*.bk.*
+*.pt*
+*temp*
