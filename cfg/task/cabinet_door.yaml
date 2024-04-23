@@ -1,6 +1,6 @@
 env:
   taskname: "cabinetdoor"
-  numEnvs: 16
+  numEnvs: 512
   numStates: 25 #
   numObservations: 28
   episodeLength: 600

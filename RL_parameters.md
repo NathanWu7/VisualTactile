@@ -1,5 +1,5 @@
 ## RL parameters
-Edit tasks/ur5xxxx.py <br>
+Edit tasks/xxxx.py <br>
 Function name: compute_reach_reward() <br>
 The reward must lower than 0 <br>
 
@@ -23,7 +23,7 @@ d_g = torch.norm(states["cube_to_goal"], dim=-1)
 d_cabinet = states["cabinet_dof_pos"].squeeze(1)
 ```
 
-### 1. ur5lift
+### 1. lift
 
 The goal is to lift a object to 0.1 m.
 ```sh
@@ -38,7 +38,7 @@ The goal is to lift a object to 0.1 m.
                 + force * 0.0005
 ```
 
-### 2. ur5pickandplace
+### 2. pickandplace
 The goal is to lift a object to 0.2m, then move it to goal.
 ```sh
     cubeA_height = states["cube_pos"][:, 2] - 0.86
@@ -55,7 +55,7 @@ The goal is to lift a object to 0.2m, then move it to goal.
                 + cubeA_reached * 300
 ```
 
-### 3. ur5cabinet
+### 3. cabinet
 The goal is to open the cabinet drawer for 0.1m.
 ```sh
     force[force > 200] = 200
@@ -68,7 +68,7 @@ The goal is to open the cabinet drawer for 0.1m.
                 + goal * 100
 ```
 
-### 4. ur5cabinet_door
+### 4. cabinet_door
 The goal is to open the cabinet door for 0.3 rad.
 ```sh
     force[force > 200] = 200

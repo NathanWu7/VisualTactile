@@ -1,6 +1,6 @@
 env:
   taskname: 'lift'
-  numEnvs: 4
+  numEnvs: 512
   numStates: 28 #
   numObservations: 28
   episodeLength: 600
@@ -26,7 +26,7 @@ env:
   actionScale: 1.0
   PCDownSampleNum: 8192
   TDownSampleNum: 64
-  obs_type: ["oracle","pointcloud","tactile"]          #["oracle","pointcloud","tactile"]  
+  obs_type: ["oracle"]          #["oracle","pointcloud","tactile"]  
   aggregateMode: 1
   seed: 42
 

@@ -1,6 +1,6 @@
 env:
   taskname: "cabinet"
-  numEnvs: 16
+  numEnvs: 512
   numStates: 25 #
   numObservations: 28
   episodeLength: 600
@@ -14,7 +14,7 @@ env:
   sensor: 'GS'
   arm_dof: 6
   hand_joint: 2
-  
+
   dof_limits_low: [-4.,-1.5,-2.355,-0.785,-3.14,-3.14,0   ]
   dof_limits_high: [-1.6,1.5, 0.,    1.5,   3.14, 3.14,0.4]
   osc_limits_low: [-0.05,0.05,0.87]  #for env

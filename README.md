@@ -29,91 +29,94 @@ Finally, run the following to install other packages.
 pip install -r requirements.txt
 ```
 
+### Assets
+Google Drive Link: https://drive.google.com/file/d/16qATmRousv1vgVg3yQnahmRkPLoQ8lzG/view?usp=drive_link
+
 ## Task test
 ### Lift object
 ```sh
-python3 train.py --task ur5pickup --test
+python3 train.py --task pickup --test
 ```
 ### Pick and Place
 ```sh
-python3 train.py --task ur5pickandplace --test
+python3 train.py --task pickandplace --test
 ```
 ### Cabinet draw
 ```sh
-python3 train.py --task ur5cabinet --test
+python3 train.py --task cabinet --test
 ```
 ### Open cabinet door
 ```sh
-python3 train.py --task ur5cabinet_door --test
+python3 train.py --task cabinet_door --test
 ```
 ## Training
 
 Tensorboard logdir :/run
 
 ### 1. RL 
-For env  modify this file :   cfg/task/ur5xxxx.yaml  <br>
+For env  modify this file :   cfg/task/xxxx.yaml  <br>
   numEnvs : 512+        <br>                                   
   obs_type: ["oracle"] <br>
   
-For algo modify this file:    cfg/train/sac/sac_ur5xxxx.yaml   <br>
+For algo modify this file:    cfg/train/sac/sac_xxxx.yaml   <br>
   load_iter: when rl model saved   <br>
 ```sh
-python3 train.py --task ur5xxxx --algo sac --headless
+python3 train.py --task xxxx --algo sac --headless
 ```
 For testing:
 ```sh
-python3 train.py --task ur5xxxx --algo sac --headless --test
+python3 train.py --task xxxx --algo sac --headless --test
 ```
 
 ### 2. VTA
-For env modify this file :  cfg/task/ur5xxxx.yaml  <br>
+For env modify this file :  cfg/task/xxxx.yaml  <br>
   numEnvs : 16+  <br>
   obs_type: ["oracle","pointcloud","tactile"]  <br>
   
-For algo modify this file:   cfg/train/vta/vta_ur5xxx.yaml  <br>   
+For algo modify this file:   cfg/train/vta/vta_xxx.yaml  <br>   
   rl_algo: "sac"     --> Choose algorithm <br>
   rl_iter: 10000     -->  When RL model saved (iter)  <br>
   max_iterations: 10000  <br>
   
 ```sh
-python3 train.py --task ur5xxxx --algo vta --headless
+python3 train.py --task xxxx --algo vta --headless
 ```
 VTA test cannot run under headless model
 
 ### 3. VTP
-For algo modify this file:   cfg/train/vtp/vtp_ur5xxx.yaml    
+For algo modify this file:   cfg/train/vtp/vtp_xxx.yaml    
   sample_batch_size: 32 + (sample from replay_size * numEnvs)<br>
   replay_size: 300 + (total data: replay_size * numEnvs, each step update -> numEnvs)<br>
   lr: 0.001   -->  learning rate   <br>
 Other config files are the same as VTA  <br>
 ```sh
-python3 train.py --task ur5xxxx --algo vtp --headless
+python3 train.py --task xxxx --algo vtp --headless
 ```
 For testing:
 ```sh
-python3 train.py --task ur5xxxx --algo vtp --test --headless
+python3 train.py --task xxxx --algo vtp --test --headless
 ```
 
 ## Comparision
 ### 1. VTS
-For algo modify this file:   cfg/train/vts/vts_ur5xxx.yaml   <br>
+For algo modify this file:   cfg/train/vts/vts_xxx.yaml   <br>
 Parameters are the same as vtp <br>
 After training RL in step 1 <br>
 ```sh
-python3 train.py --task ur5xxxx --algo vts --headless
+python3 train.py --task xxxx --algo vts --headless
 ```
 For testing
 ```sh
-python3 train.py --task ur5xxxx --algo vts --headless --test
+python3 train.py --task xxxx --algo vts --headless --test
 ```
 
 ### 2. RLA
-For algo modify this file:   cfg/train/rla/rla_ur5xxx.yaml   <br>
+For algo modify this file:   cfg/train/rla/rla_xxx.yaml   <br>
 numEnvs : 4+  <br>
 End to end training <br>
 ```sh
-python3 train.py --task ur5xxxx --algo rla --headless
+python3 train.py --task xxxx --algo rla --headless
 ```
 For testing
 ```sh
-python3 train.py --task ur5xxxx --algo rla --headless --test
+python3 train.py --task xxxx --algo rla --headless --test

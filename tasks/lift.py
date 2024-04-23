@@ -155,7 +155,7 @@ class Lift(BaseTask):
 
         asset_root = 'assets'
         asset_file = self.arm_type+self.hand_type+self.sensor_type + '.urdf'
-        obj_asset_file = 'grasping/16/mobility.urdf'
+        obj_asset_file = 'grasping/19/mobility.urdf'  # 16 18 19
 
         robotarm_assert = get_robotarm_asset(self.gym, self.sim, asset_root, asset_file)
         obj_asset = get_object_asset(self.gym, self.sim, asset_root, obj_asset_file)
@@ -184,8 +184,8 @@ class Lift(BaseTask):
         table_con_asset = self.gym.create_box(self.sim, *[0.2, 0.15, table_con_height], table_opts)
 
         #create cube asset
-        self.obj_size = 0.040
-        obj_pos = [0.30, 0.365, self.table_stand_height + self.obj_size / 2]
+        #self.obj_size = 0.07
+        obj_pos = [0.30, 0.365, self.table_stand_height]
         #obj_opts = gymapi.AssetOptions()
         self._init_obj_state = torch.zeros((self.num_envs, 13), device=self.device)
 
@@ -422,10 +422,10 @@ class Lift(BaseTask):
 
         # Setup tensor buffers
         _actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)  #including objs
-        self._init_obj_state[:, :3] = torch.tensor([0.30, 0.365, self.table_stand_height + self.obj_size / 2], device=self.device)
+        self._init_obj_state[:, :3] = torch.tensor([0.30, 0.365, self.table_stand_height], device=self.device)
         self._init_obj_state[:, 6] = torch.tensor([1], device=self.device)
 
-        self.init_goal_pos[:,:3] = to_torch([0.30, 0.365, self.table_stand_height + self.obj_size / 2 + 0.5], device=self.device)
+        self.init_goal_pos[:,:3] = to_torch([0.30, 0.365, self.table_stand_height + 0.5], device=self.device)
         self.init_goal_pos[:,6] = to_torch([1], device=self.device)    
 
         _dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)      #only dof
@@ -821,7 +821,7 @@ class Lift(BaseTask):
         #_init_obj_state [num_envs, 13]
 
         centered_cube_xy_state = torch.tensor([0.30, 0.365, 0.83], device=self.device, dtype=torch.float32)
-        _init_obj_state[env_ids, 2] = self.table_stand_height + self.obj_size / 2
+        _init_obj_state[env_ids, 2] = self.table_stand_height
         _init_obj_state[env_ids, :2] = centered_cube_xy_state[0:2] + 2.0 * self.start_position_noise * \
                                         (torch.rand(len(env_ids), 2, device=self.device) - 0.5)
 
@@ -834,7 +834,7 @@ class Lift(BaseTask):
     
     def _random_goal_state(self, init_goal_state):
         centered_goal_xy_state = torch.tensor([0.30, 0.365, 1.36], device=self.device, dtype=torch.float32)
-        init_goal_state[:, 2] = self.table_stand_height + self.obj_size / 2 + 0.5
+        init_goal_state[:, 2] = self.table_stand_height + 0.5
         init_goal_state[:, :2] = centered_goal_xy_state[0:2] + 0.5 * self.start_position_noise * \
                                         (torch.rand(self.num_envs, 2, device=self.device) - 0.5)
         return init_goal_state
