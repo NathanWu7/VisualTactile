@@ -13,3 +13,5 @@ build/
 *.bk.*
 *.pt*
 *temp*
+Pointnet2_PyTorch/
+isaacgym/
