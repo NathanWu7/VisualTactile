@@ -489,7 +489,7 @@ class Cabinet(BaseTask):
             "last_actions": self.last_actions,  #7
             "all_pc": self.all_pointcloud,
             "touch_rate":self.touch_rate,
-            "force": self._contact_forces,
+            "force": self._contact_forces / 200,
             "cabinet_dof_pos": self.cabinet_dof_pos[:,2].unsqueeze(1)
         })    
 
@@ -840,12 +840,12 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
 
     force = states["force"].squeeze(1)
     
-    force[force > 200] = 200
+    force[force > 1] = 1
     ungrasp = force == 0
     goal = d_cabinet > 0.1
 
     rew_buf = - 0.4 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * ungrasp \
-                + force * 0.0005 \
+                + force * 0.1 \
                 + d_cabinet \
                 + goal * 100
 

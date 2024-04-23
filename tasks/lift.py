@@ -487,7 +487,7 @@ class Lift(BaseTask):
             "last_actions": self.last_actions,  #7
             "all_pc": self.all_pointcloud,
             "touch_rate":self.touch_rate,
-            "force": self._contact_forces
+            "force": self._contact_forces / 200
         })    
 
 
@@ -870,17 +870,17 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     #print(d_lf)
     #print(d_rf)
     # reward for lifting obj
-    obj_height = states["cube_pos"][:, 2] - 0.86
+    obj_height = states["cube_pos"][:, 2] - 0.83
     obj_lifted = obj_height > 0.01
     obj_reached = obj_height > 0.1
     #obj_unreached = obj_height < 0.1
     #obj_droped = obj_height < -0.01
     success_buf = obj_reached
-    force[force > 200] = 200
+    force[force > 1] = 1
 
     rew_buf = - 0.3 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) + obj_lifted * obj_height * 2\
                 + obj_reached * 100 \
-                + force * 0.0005
+                + force * 0.1
     
                     
 

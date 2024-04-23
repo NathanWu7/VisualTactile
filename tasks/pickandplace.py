@@ -488,7 +488,7 @@ class Pickandplace(BaseTask):
             "last_actions": self.last_actions,  #7
             "all_pc": self.all_pointcloud,
             #"touch_rate":self.touch_rate,
-            "force": self._contact_forces
+            "force": self._contact_forces / 200
         })    
 
 
@@ -877,11 +877,11 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     #cubeA_unreached = cubeA_height < 0.1
     #cubeA_droped = cubeA_height < -0.01
     success_buf = cubeA_reached
-    force[force > 200] = 200
+    force[force > 1] = 1
 
     rew_buf = - 0.4 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) + cubeA_lifted * cubeA_height * 5\
                 + cubeA_picked * (1-torch.tanh(d_g * 2)) * 2 \
-                + force * 0.0005 \
+                + force * 0.1 \
                 + cubeA_reached * 300
     
     reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (cubeA_reached), torch.ones_like(reset_buf), reset_buf)

@@ -490,7 +490,7 @@ class Cabinet_door(BaseTask):
             "last_actions": self.last_actions,  #7
             "all_pc": self.all_pointcloud,
             "touch_rate":self.touch_rate,
-            "force": self._contact_forces,
+            "force": self._contact_forces / 200,
             "cabinet_dof_pos": self.cabinet_dof_pos[:,0].unsqueeze(1)
         })    
 
@@ -842,8 +842,8 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     d_cabinet = torch.abs(states["cabinet_dof_pos"].squeeze(1))
     #print(d_cabinet)
     force = states["force"].squeeze(1)
-    force[force > 200] = 200
-    touch = force > 0
+    force[force > 1] = 1
+    touch = force > 0.01
     goal = d_cabinet > 0.3
     close = d_cabinet < 0.01
 
