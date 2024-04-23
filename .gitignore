@@ -1,4 +1,5 @@
 /run
+/assets
 /log
 *.pyc
 log*.txt
