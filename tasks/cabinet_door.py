@@ -853,16 +853,17 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     #print(d_cabinet)
     force = states["force"].squeeze(1)
     force[force > 1] = 1
+    grasp = force > 0
     ungrasp = force == 0
     goal = d_cabinet > 0.4
     close = d_cabinet < 0.01
     v_cabinet[v_cabinet > 2] = 2 
 
-    rew_buf =   - 0.7 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * close \
+    rew_buf =   - 0.7 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * ungrasp \
                 + force * 0.1 \
                 + v_cabinet * 0.1 \
                 + d_cabinet \
-                + goal * 300
+                + goal * 600
 
     #reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (rewards > 0.8), torch.ones_like(reset_buf), reset_buf)
     reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | goal, torch.ones_like(reset_buf), reset_buf)
