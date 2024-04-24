@@ -843,8 +843,9 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     force[force > 1] = 1
     ungrasp = force == 0
     goal = d_cabinet > 0.1
+    close = d_cabinet < 0.01
 
-    rew_buf = - 0.2 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * ungrasp \
+    rew_buf = - 0.2 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * close \
                 + force * 0.1 \
                 + d_cabinet \
                 + goal * 100
