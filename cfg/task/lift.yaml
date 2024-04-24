@@ -1,8 +1,8 @@
 env:
   taskname: 'lift'
   numEnvs: 512
-  numStates: 28 #
-  numObservations: 28
+  numStates: 25 #
+  numObservations: 25
   episodeLength: 600
 
   sim_device: "cuda:0"
@@ -20,13 +20,13 @@ env:
   osc_limits_low: [-0.05,0.05,0.87]
   osc_limits_high: [0.65,0.8,1.85]
   arm_default_dof_pos: [-1.57, 0, -1.57, 0, 1.57, 0]
-  control_step_limits: [0.01, 0.01, 0.01, 0.05, 0.05, 0.05, 0.01]
+  control_step_limits: [0.01, 0.01, 0.01, 0.05, 0.05, 0.05, 0.02]
 
 
   actionScale: 1.0
   PCDownSampleNum: 8192
   TDownSampleNum: 64
-  obs_type: ["oracle"]          #["oracle","pointcloud","tactile"]  
+  obs_type: ["oracle"]           #["oracle","pointcloud","tactile"]  
   aggregateMode: 1
   seed: 42
 
