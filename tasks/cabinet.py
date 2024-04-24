@@ -214,7 +214,7 @@ class Cabinet(BaseTask):
         table_con_pose.p = gymapi.Vec3(*table_con_pos)
         table_con_pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)
 
-        cabinet_pos = [1.10, 0.4, 0.83+0.4]
+        cabinet_pos = [1.10, 0.3, 0.83+0.4]
         cabinet_start_pose = gymapi.Transform()
         cabinet_start_pose.p = gymapi.Vec3(*cabinet_pos)
         cabinet_start_pose.r = gymapi.Quat(0.0, 0.0, 1.0, 0.0)
@@ -424,7 +424,7 @@ class Cabinet(BaseTask):
 
         # Setup tensor buffers
         _actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)  #including objs
-        self.init_cabinet_pos = torch.tensor([1.10, 0.4, 0.83+0.4],device = self.device)
+        self.init_cabinet_pos = torch.tensor([1.10, 0.3, 0.83+0.4],device = self.device)
 
         _dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)      #only dof
         _rigid_body_state_tensor = self.gym.acquire_rigid_body_state_tensor(self.sim)  #arm_hand
@@ -439,7 +439,7 @@ class Cabinet(BaseTask):
         # linear velocity([7:10]), and angular velocity([10:13]).
 
 
-        self.init_goal_pos[:,:3] = to_torch([0.74, 0.4, self.table_stand_height + 0.6], device=self.device)
+        self.init_goal_pos[:,:3] = to_torch([0.74, 0.3, self.table_stand_height + 0.6], device=self.device)
         self.init_goal_pos[:,6] = to_torch([1], device=self.device)    
         self.goal_pos = self.init_goal_pos[:,:3]
 
@@ -517,9 +517,9 @@ class Cabinet(BaseTask):
                                                                         self.max_episode_length)
 
     def compute_observations(self):
-        self._refresh() #7 3      #4           #6                          #1            #3           #4
-        obs =    ["robotarm_dof_pos", "ee_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos"]
-        states = ["robotarm_dof_pos", "ee_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos"]
+        self._refresh() #7       #4           #6                          #1            #3           #4
+        obs =    ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos"]
+        states = ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos"]
         self.obs_buf = torch.cat([self.states[ob] for ob in obs], dim=-1)
         self.states_buf = torch.cat([self.states[state] for state in states], dim=-1)
         self.pointcloud_buf = self.states["all_pc"]
@@ -844,7 +844,7 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     ungrasp = force == 0
     goal = d_cabinet > 0.1
 
-    rew_buf = - 0.4 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * ungrasp \
+    rew_buf = - 0.2 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * ungrasp \
                 + force * 0.1 \
                 + d_cabinet \
                 + goal * 100

@@ -197,6 +197,12 @@ class BaseTask():
         if dof == "XYZRz":
             self.actions[:,0:3] = actions[:,0:3]
             self.actions[:,5:7] = actions[:,3:5]
+        if dof == "XYZRxRz":
+            self.actions[:,0:4] = actions[:,0:4]
+            self.actions[:,5:7] = actions[:,4:6]
+        if dof == "XYZRyRz":
+            self.actions[:,0:3] = actions[:,0:3]
+            self.actions[:,4:7] = actions[:,3:6]
 
     def get_states(self):
         return self.states_buf

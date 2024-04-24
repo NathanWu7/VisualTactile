@@ -516,8 +516,8 @@ class Pickandplace(BaseTask):
 
     def compute_observations(self):
         self._refresh() #7 3      #4           #6                          #1            #7
-        obs =    ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat","goal_pos"]
-        states = ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat","goal_pos"]
+        obs =    ["q", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat","goal_pos"]
+        states = ["q", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat","goal_pos"]
         #print(self.states["force"])
         #prioperception = ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos"] #porp
         #student = ["q","eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos","all_pc"]
