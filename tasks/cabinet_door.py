@@ -861,8 +861,8 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
 
     rew_buf =   - 0.7 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * ungrasp \
                 + force * 0.1 \
-                + v_cabinet * 0.1 \
-                + d_cabinet \
+                + v_cabinet * 0.1 * grasp\
+                + d_cabinet * grasp\
                 + goal * 600
 
     #reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (rewards > 0.8), torch.ones_like(reset_buf), reset_buf)
