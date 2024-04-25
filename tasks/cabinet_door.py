@@ -107,7 +107,6 @@ class Cabinet_door(BaseTask):
         self._dof_state = None  # State of all joints       (n_envs, n_dof)
 
         self._rigid_body_state = None  # State of all rigid bodies             (n_envs, n_bodies, 13)
-        self._contact_forces = None     # Contact forces in sim
         self._eef_state = None  # end effector state (at grasping point)
         self._eef_lf_state = None  # end effector state (at left fingertip)
         self._eef_rf_state = None  # end effector state (at left fingertip)
@@ -409,14 +408,14 @@ class Cabinet_door(BaseTask):
         robotarm_handle = 0
         cabinet_handle = 3
         #check your urdf
-        num_robotarm_rigid_bodies = self.gym.get_actor_rigid_body_count(env_ptr, robotarm_handle)
         
         self.handles = {
             # robotarm
             "hand": self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "ee_link"),
             "hand_left": self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "left_box"),
             "hand_right": self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "right_box"),
-            "left_door_nob": self.gym.find_actor_rigid_body_handle(env_ptr, cabinet_handle, "door_left_link"),
+            "left_door_nob": self.gym.find_actor_rigid_body_handle(env_ptr, cabinet_handle, "door_left_nob_link"),
+            "right_door_nob": self.gym.find_actor_rigid_body_handle(env_ptr, cabinet_handle, "door_right_nob_link"),
 
         }
 
@@ -438,16 +437,17 @@ class Cabinet_door(BaseTask):
         #_net_cf = self.gym.acquire_net_contact_force_tensor(self.sim)
         force_sensor_tensor = self.gym.acquire_force_sensor_tensor(self.sim)
         self.fs_tensor = gymtorch.wrap_tensor(force_sensor_tensor)
-        self._contact_forces = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
+        self._left_x_force = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
+        self._right_x_force = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
+        self._left_y_force = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
+        self._right_y_force = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
+        self._left_z_force = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
+        self._right_z_force = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
 
 
         #The buffer has shape (num_rigid_bodies, 13). State for each rigid body contains position([0:3]), rotation([3:7]), 
         # linear velocity([7:10]), and angular velocity([10:13]).
 
-
-        self.init_goal_pos[:,:3] = to_torch([0.75, 0.33, self.table_stand_height + 0.457], device=self.device)
-        self.init_goal_pos[:,6] = to_torch([1], device=self.device)    
-        self.goal_pos = self.init_goal_pos[:,:3]
 
         self._root_state = gymtorch.wrap_tensor(_actor_root_state_tensor).view(self.num_envs, -1, 13)
         self._dof_state = gymtorch.wrap_tensor(_dof_state_tensor).view(self.num_envs, -1, 2)  #pos speed
@@ -464,6 +464,7 @@ class Cabinet_door(BaseTask):
         self._eef_lf_state = self._rigid_body_state[:, self.handles["hand_left"], :]
         self._eef_rf_state = self._rigid_body_state[:, self.handles["hand_right"], :]
         self._left_door_nob_state = self._rigid_body_state[:, self.handles["left_door_nob"], :]
+        self._right_door_nob_state = self._rigid_body_state[:, self.handles["right_door_nob"], :]
         #print(self._left_door_nob_state)
         _jacobian = self.gym.acquire_jacobian_tensor(self.sim, "robotarmreach")
         jacobian = gymtorch.wrap_tensor(_jacobian)
@@ -491,17 +492,20 @@ class Cabinet_door(BaseTask):
             "ee_lf_pos": self._eef_lf_state[:, :3],   #3
             #"eef_lf_quat": self._eef_lf_state[:, 3:7],   #4
             "ee_rf_pos": self._eef_rf_state[:, :3], #3
-            "goal_pos": self.goal_pos[:, :3],
             #"eef_rf_quat": self._eef_rf_state[:, 3:7],   #
             "last_actions": self.last_actions,  #7
             "all_pc": self.all_pointcloud,
             "touch_rate":self.touch_rate,
-            "force": self._contact_forces / 200,
+            "left_z_force": self._left_z_force,
+            "right_z_force": self._right_z_force,
+            "z_force": self._left_z_force  - self._right_z_force  , 
+            "x_force": (self._left_x_force  + self._right_x_force) / 2  , 
+            "y_force": (self._left_y_force  + self._right_y_force) / 2  , 
             "cabinet_dof_pos": self.cabinet_dof_pos[:,0].unsqueeze(1),
             "cabinet_dof_vel": self.cabinet_dof_vel[:,0].unsqueeze(1),
-            "left_door_nob": self._left_door_nob_state
+            "left_door_nob_pos": self._left_door_nob_state[:,0:3],
+            "right_door_nob_pos": self._right_door_nob_state[:,0:3],
         })    
-        #print(self._left_door_nob_state[0,7:10])
 
     def _refresh(self):
         
@@ -528,8 +532,8 @@ class Cabinet_door(BaseTask):
 
     def compute_observations(self):
         self._refresh() #7 3      #4           #6                          #1            #3           #4
-        obs =    ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos","cabinet_dof_vel"]
-        states = ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos","cabinet_dof_vel"]
+        obs =    ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "x_force", "y_force","z_force", "left_door_nob_pos", "cabinet_dof_pos"]
+        states = ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "x_force", "y_force","z_force", "left_door_nob_pos", "cabinet_dof_pos"]
         self.obs_buf = torch.cat([self.states[ob] for ob in obs], dim=-1)
         self.states_buf = torch.cat([self.states[state] for state in states], dim=-1)
         self.pointcloud_buf = self.states["all_pc"]
@@ -580,7 +584,15 @@ class Cabinet_door(BaseTask):
         # 计算总接触力
         left_contact_force = net_contact_force[:, self.handles["hand_left"], :]
         right_contact_force = net_contact_force[:, self.handles["hand_right"], :]
-        self._contact_forces = torch.norm(left_contact_force-right_contact_force, dim=-1).unsqueeze(1)
+
+        self.horizon_contact_forces = torch.norm(left_contact_force[:,0:2]-right_contact_force[:,0:2], dim=-1).unsqueeze(1)
+        self._left_x_force = left_contact_force[:,0].unsqueeze(1)
+        self._right_x_force = right_contact_force[:,0].unsqueeze(1)
+        self._left_y_force = left_contact_force[:,1].unsqueeze(1)
+        self._right_y_force = right_contact_force[:,1].unsqueeze(1)
+        self._left_z_force = left_contact_force[:,2].unsqueeze(1)
+        self._right_z_force = right_contact_force[:,2].unsqueeze(1)
+
 
 
     def compute_point_cloud_observation(self):
@@ -843,27 +855,32 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     # type: (Tensor, Tensor, Dict[str, Tensor], float) -> Tuple[Tensor, Tensor, Tensor]
     
     #touch_rate = states["touch_rate"].squeeze(1)
-    d_lf = torch.norm(states["goal_pos"] - states["ee_lf_pos"], dim=-1)
-    d_rf = torch.norm(states["goal_pos"] - states["ee_rf_pos"], dim=-1)
+    d_lf = torch.norm(states["left_door_nob_pos"] - states["ee_lf_pos"], dim=-1) 
+    d_rf = torch.norm(states["left_door_nob_pos"] - states["ee_rf_pos"], dim=-1)
     d_ff = torch.norm(states["ee_lf_pos"] - states["ee_rf_pos"], dim=-1)
 
     d_cabinet = torch.abs(states["cabinet_dof_pos"].squeeze(1))
-    v_cabinet = torch.abs(states["cabinet_dof_vel"].squeeze(1))
+    
+    #v_cabinet = torch.abs(states["cabinet_dof_vel"].squeeze(1))
     #print(v_cabinet)
     #print(d_cabinet)
-    force = states["force"].squeeze(1)
-    force[force > 1] = 1
-    grasp = force > 0
-    ungrasp = force == 0
-    goal = d_cabinet > 0.4
-    close = d_cabinet < 0.01
-    v_cabinet[v_cabinet > 2] = 2 
+    left_z_force = states["left_z_force"].squeeze(1)
+    right_z_force = states["right_z_force"].squeeze(1)
+    x_force = states["x_force"].squeeze(1) * -1
+    y_force = states["y_force"].squeeze(1)
 
-    rew_buf =   - 0.7 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * ungrasp \
-                + force * 0.1 \
-                + v_cabinet * 0.1 * grasp\
-                + d_cabinet * grasp\
-                + goal * 600
+    grasp = (left_z_force > 0) * (right_z_force<0) 
+    z_force = left_z_force - right_z_force
+    z_force[z_force > 0.2] = 0.2
+    x_force[x_force > 0.05] = 0.05
+    #horizon_force[horizon_force > 0.1] = 0.1
+    goal = d_cabinet > 0.2
+
+    rew_buf =   - 1.3 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2))\
+                + grasp * 0.2 \
+                + z_force \
+                + x_force * 5 * grasp \
+                + d_cabinet * grasp * 5
 
     #reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (rewards > 0.8), torch.ones_like(reset_buf), reset_buf)
     reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | goal, torch.ones_like(reset_buf), reset_buf)

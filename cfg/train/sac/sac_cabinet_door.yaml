@@ -3,18 +3,18 @@ seed: 42
 clip_observations: 5.0
 clip_actions: 1.0
 
-env_shape: 5
-proprioception_shape: 18
-load_iter: 1000
+env_shape: 4
+proprioception_shape: 20
+load_iter: 3500
 
 learn:
   test: False
   resume: 0
-  save_interval: 300
+  save_interval: 500
   print_log: True
 
   # rollout params
-  max_iterations: 50000
+  max_iterations: 10000
 
   # training params
   hidden_nodes: 512
@@ -32,7 +32,7 @@ learn:
   reward_scale: 1
   batch_size: 32
 
-  gamma: 0.98
+  gamma: 0.99
 
 
   log_interval: 1

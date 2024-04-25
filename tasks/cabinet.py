@@ -402,15 +402,16 @@ class Cabinet(BaseTask):
     def init_data(self):
         env_ptr = self.envs[0] 
         robotarm_handle = 0
+        cabinet_handle = 3
         #check your urdf
-        num_robotarm_rigid_bodies = self.gym.get_actor_rigid_body_count(env_ptr, robotarm_handle)
-        
 
         self.handles = {
             # robotarm
             "hand": self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "ee_link"),
             "hand_left": self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "left_box"),
             "hand_right": self.gym.find_actor_rigid_body_handle(env_ptr, robotarm_handle, "right_box"),
+            "drawer_handle_bottom": self.gym.find_actor_rigid_body_handle(env_ptr, cabinet_handle, "drawer_handle_bottom"),
+            "drawer_handle_top": self.gym.find_actor_rigid_body_handle(env_ptr, cabinet_handle, "drawer_handle_top"),
 
         }
 
@@ -457,6 +458,8 @@ class Cabinet(BaseTask):
         self._eef_state = self._rigid_body_state[:, self.handles["hand"], :]
         self._eef_lf_state = self._rigid_body_state[:, self.handles["hand_left"], :]
         self._eef_rf_state = self._rigid_body_state[:, self.handles["hand_right"], :]
+        self._drawer_handle_bottom_state = self._rigid_body_state[:, self.handles["drawer_handle_bottom"], :]
+        self._drawer_handle_top_state = self._rigid_body_state[:, self.handles["drawer_handle_top"], :]
 
         _jacobian = self.gym.acquire_jacobian_tensor(self.sim, "robotarmreach")
         jacobian = gymtorch.wrap_tensor(_jacobian)
@@ -490,7 +493,10 @@ class Cabinet(BaseTask):
             "all_pc": self.all_pointcloud,
             "touch_rate":self.touch_rate,
             "force": self._contact_forces / 200,
-            "cabinet_dof_pos": self.cabinet_dof_pos[:,2].unsqueeze(1)
+            "cabinet_dof_pos": self.cabinet_dof_pos[:,2].unsqueeze(1),
+            "cabinet_dof_vel": self.cabinet_dof_vel[:,0].unsqueeze(1),
+            "drawer_handle_bottom_pos": self._drawer_handle_bottom_state[:,0:3],
+            "drawer_handle_top_pos": self._drawer_handle_top_state[:,0:3],
         })    
 
 
@@ -517,9 +523,9 @@ class Cabinet(BaseTask):
                                                                         self.max_episode_length)
 
     def compute_observations(self):
-        self._refresh() #7       #4           #6                          #1            #3           #4
-        obs =    ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos"]
-        states = ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "goal_pos", "cabinet_dof_pos"]
+        self._refresh() #7       #4           #6                          #1            #3           #1
+        obs =    ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "drawer_handle_bottom_pos", "cabinet_dof_pos"]
+        states = ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "drawer_handle_bottom_pos", "cabinet_dof_pos"]
         self.obs_buf = torch.cat([self.states[ob] for ob in obs], dim=-1)
         self.states_buf = torch.cat([self.states[state] for state in states], dim=-1)
         self.pointcloud_buf = self.states["all_pc"]
@@ -705,7 +711,7 @@ class Cabinet(BaseTask):
 
         is_zero = torch.all(sensors_point_clouds == 0, dim=-1)
         num_zero_points = torch.sum(is_zero, dim=-1)
-        self.touch_rate[:,0] = (1 - num_zero_points / (self.sensor_downsample_num * 2))
+        self.touch_rate[:,0] = (1 - num_zero_points.float() / (self.sensor_downsample_num.float * 2))
         
 
         #self.sensor_pointcloud_flatten = sensors_point_clouds.view(self.num_envs, 2 * self.sensor_downsample_num * 3)
@@ -832,22 +838,25 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     # type: (Tensor, Tensor, Dict[str, Tensor], float) -> Tuple[Tensor, Tensor, Tensor]
     
     #touch_rate = states["touch_rate"].squeeze(1)
-    d_lf = torch.norm(states["goal_pos"] - states["ee_lf_pos"], dim=-1)
-    d_rf = torch.norm(states["goal_pos"] - states["ee_rf_pos"], dim=-1)
+    d_lf = torch.norm(states["drawer_handle_bottom_pos"] - states["ee_lf_pos"], dim=-1)
+    d_rf = torch.norm(states["drawer_handle_bottom_pos"] - states["ee_rf_pos"], dim=-1)
     d_ff = torch.norm(states["ee_lf_pos"] - states["ee_rf_pos"], dim=-1)
 
-    d_cabinet = states["cabinet_dof_pos"].squeeze(1)
+    #d_cabinet = states["cabinet_dof_pos"].squeeze(1)
+    d_cabinet = torch.abs(states["cabinet_dof_pos"].squeeze(1))
+    v_cabinet = torch.abs(states["cabinet_dof_vel"].squeeze(1))
 
     force = states["force"].squeeze(1)
     
     force[force > 1] = 1
     ungrasp = force == 0
+    grasp = force > 0
     goal = d_cabinet > 0.1
     close = d_cabinet < 0.01
-
+     
     rew_buf = - 0.2 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * ungrasp \
                 + force * 0.1 \
-                + d_cabinet \
+                + d_cabinet\
                 + goal * 100
 
     #reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (rewards > 0.8), torch.ones_like(reset_buf), reset_buf)

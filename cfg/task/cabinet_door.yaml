@@ -1,8 +1,8 @@
 env:
   taskname: "cabinetdoor"
   numEnvs: 512
-  numStates: 23 #
-  numObservations: 23
+  numStates: 24 #
+  numObservations: 24
   episodeLength: 600
   
   sim_device: "cuda:0"
