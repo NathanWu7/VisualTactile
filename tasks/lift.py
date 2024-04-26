@@ -515,8 +515,8 @@ class Lift(BaseTask):
 
     def compute_observations(self):
         self._refresh() #7    3      #4           #3           #3 #1              #1            #7
-        obs =    ["q", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat"]
-        states = ["q", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat"]
+        obs =    ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat"]
+        states = ["q", "eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat"]
         #print(self.states["force"])
         #prioperception = ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos"] #porp
         #student = ["q","eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos","all_pc"]

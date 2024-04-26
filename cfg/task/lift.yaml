@@ -1,8 +1,8 @@
 env:
   taskname: 'lift'
   numEnvs: 512
-  numStates: 25 #
-  numObservations: 25
+  numStates: 28 #
+  numObservations: 28
   episodeLength: 600
 
   sim_device: "cuda:0"

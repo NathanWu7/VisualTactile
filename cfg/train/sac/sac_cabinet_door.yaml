@@ -4,7 +4,7 @@ clip_observations: 5.0
 clip_actions: 1.0
 
 env_shape: 4
-proprioception_shape: 20
+proprioception_shape: 23
 load_iter: 3500
 
 learn:

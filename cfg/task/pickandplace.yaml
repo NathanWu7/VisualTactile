@@ -1,8 +1,8 @@
 env:
   taskname: "pickandplace"
   numEnvs: 512
-  numStates: 28 #
-  numObservations: 28
+  numStates: 31 #
+  numObservations: 31
   episodeLength: 600
 
   sim_device: "cuda:0"
@@ -34,7 +34,7 @@ env:
   dof_config: "XYZRz"
   controlFrequencyInv: 1
 
-  debug: False # if debug, num_envs will be set to numDebugEnvs
+  debug: True # if debug, num_envs will be set to numDebugEnvs
   numDebugEnvs: 2
   Pointcloud_Visualize: True
   Camera_Visualize: True

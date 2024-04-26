@@ -524,8 +524,8 @@ class Cabinet(BaseTask):
 
     def compute_observations(self):
         self._refresh() #7       #4           #6                          #1            #3           #1
-        obs =    ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "drawer_handle_bottom_pos", "cabinet_dof_pos"]
-        states = ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "drawer_handle_bottom_pos", "cabinet_dof_pos"]
+        obs =    ["robotarm_dof_pos", "ee_pos","ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "drawer_handle_bottom_pos", "cabinet_dof_pos"]
+        states = ["robotarm_dof_pos", "ee_pos","ee_quat",  "ee_lf_pos", "ee_rf_pos", "force", "drawer_handle_bottom_pos", "cabinet_dof_pos"]
         self.obs_buf = torch.cat([self.states[ob] for ob in obs], dim=-1)
         self.states_buf = torch.cat([self.states[state] for state in states], dim=-1)
         self.pointcloud_buf = self.states["all_pc"]

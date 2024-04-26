@@ -516,8 +516,8 @@ class Pickandplace(BaseTask):
 
     def compute_observations(self):
         self._refresh() #7 3      #4           #6                          #1            #7
-        obs =    ["q", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat","goal_pos"]
-        states = ["q", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat","goal_pos"]
+        obs =    ["q","eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat","goal_pos"]
+        states = ["q","eef_pos", "eef_quat",  "eef_lf_pos", "eef_rf_pos", "force", "cube_pos", "cube_quat","goal_pos"]
         #print(self.states["force"])
         #prioperception = ["q", "eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos"] #porp
         #student = ["q","eef_pos", "eef_quat", "eef_lf_pos", "eef_rf_pos","goal_pos","all_pc"]
@@ -873,7 +873,7 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     cubeA_height[cubeA_height>0.2] = 0.2 
     cubeA_lifted = cubeA_height > 0.01
     cubeA_picked = cubeA_height >= 0.2
-    cubeA_reached = d_g < 0.03
+    cubeA_reached = d_g < 0.02
     #cubeA_unreached = cubeA_height < 0.1
     #cubeA_droped = cubeA_height < -0.01
     success_buf = cubeA_reached

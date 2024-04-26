@@ -532,8 +532,8 @@ class Cabinet_door(BaseTask):
 
     def compute_observations(self):
         self._refresh() #7 3      #4           #6                          #1            #3           #4
-        obs =    ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "x_force", "y_force","z_force", "left_door_nob_pos", "cabinet_dof_pos"]
-        states = ["robotarm_dof_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "x_force", "y_force","z_force", "left_door_nob_pos", "cabinet_dof_pos"]
+        obs =    ["robotarm_dof_pos", "ee_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "x_force", "y_force","z_force", "left_door_nob_pos", "cabinet_dof_pos"]
+        states = ["robotarm_dof_pos", "ee_pos", "ee_quat",  "ee_lf_pos", "ee_rf_pos", "x_force", "y_force","z_force", "left_door_nob_pos", "cabinet_dof_pos"]
         self.obs_buf = torch.cat([self.states[ob] for ob in obs], dim=-1)
         self.states_buf = torch.cat([self.states[state] for state in states], dim=-1)
         self.pointcloud_buf = self.states["all_pc"]
@@ -863,7 +863,7 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     
     #v_cabinet = torch.abs(states["cabinet_dof_vel"].squeeze(1))
     #print(v_cabinet)
-    #print(d_cabinet)
+    #print(d_cabinet)eef_pos
     left_z_force = states["left_z_force"].squeeze(1)
     right_z_force = states["right_z_force"].squeeze(1)
     x_force = states["x_force"].squeeze(1) * -1
