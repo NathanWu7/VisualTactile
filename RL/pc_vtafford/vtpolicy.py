@@ -64,7 +64,7 @@ class vtpolicy:
             os.makedirs(self.model_dir)
         self.writer = SummaryWriter(log_dir=self.model_dir, flush_secs=10)
         self.actor_critic =  MLPActorCritic(self.origin_shape, vec_env.action_space, **ac_kwargs).to(self.device)
-        self.student_actor = Student(self.input_shape, self.pointclouds_shape, self.latent_shape, self.action_space.shape, self.vec_env.num_envs, self.device, self.student_cfg)
+        self.student_actor = Student(self.input_shape, self.prop_shape, self.pointclouds_shape, self.latent_shape, self.action_space.shape, self.vec_env.num_envs, self.device, self.student_cfg)
         self.actor_critic.to(self.device)
         self.student_actor.to(self.device)
         
