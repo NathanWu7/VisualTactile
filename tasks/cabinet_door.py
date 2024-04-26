@@ -249,7 +249,7 @@ class Cabinet_door(BaseTask):
         # set cabinet dof properties
         cabinet_dof_props = self.gym.get_asset_dof_properties(cabinet_asset)
         for i in range(self.num_cabinet_dofs):
-            cabinet_dof_props['damping'][i] = 10.0
+            cabinet_dof_props['damping'][i] = 5.0
 
         num_robot_bodies = self.gym.get_asset_rigid_body_count(robotarm_assert)
         num_robot_shapes = self.gym.get_asset_rigid_shape_count(robotarm_assert)
@@ -860,27 +860,27 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     d_ff = torch.norm(states["ee_lf_pos"] - states["ee_rf_pos"], dim=-1)
 
     d_cabinet = torch.abs(states["cabinet_dof_pos"].squeeze(1))
-    
+    open = d_cabinet > 0.01
     #v_cabinet = torch.abs(states["cabinet_dof_vel"].squeeze(1))
     #print(v_cabinet)
     #print(d_cabinet)eef_pos
     left_z_force = states["left_z_force"].squeeze(1)
     right_z_force = states["right_z_force"].squeeze(1)
-    x_force = states["x_force"].squeeze(1) * -1
-    y_force = states["y_force"].squeeze(1)
+    # x_force = states["x_force"].squeeze(1) * -1
+    # y_force = states["y_force"].squeeze(1)
 
     grasp = (left_z_force > 0) * (right_z_force<0) 
-    z_force = left_z_force - right_z_force
-    z_force[z_force > 0.2] = 0.2
-    x_force[x_force > 0.05] = 0.05
+    # z_force = left_z_force - right_z_force
+    # z_force[z_force > 0.2] = 0.2
+    # x_force[x_force > 0.05] = 0.05
     #horizon_force[horizon_force > 0.1] = 0.1
     goal = d_cabinet > 0.2
 
-    rew_buf =   - 1.3 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2))\
+    rew_buf =   - 0.6 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) \
                 + grasp * 0.2 \
-                + z_force \
-                + x_force * 5 * grasp \
-                + d_cabinet * grasp * 5
+                + open * 0.1 \
+                + open * torch.tanh(5.0 * d_cabinet) * 0.5 \
+                + goal * 100
 
     #reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (rewards > 0.8), torch.ones_like(reset_buf), reset_buf)
     reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | goal, torch.ones_like(reset_buf), reset_buf)
