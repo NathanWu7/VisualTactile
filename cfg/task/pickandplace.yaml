@@ -34,7 +34,7 @@ env:
   dof_config: "XYZRz"
   controlFrequencyInv: 1
 
-  debug: True # if debug, num_envs will be set to numDebugEnvs
+  debug: False # if debug, num_envs will be set to numDebugEnvs
   numDebugEnvs: 2
   Pointcloud_Visualize: True
   Camera_Visualize: True
