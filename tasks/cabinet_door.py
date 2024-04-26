@@ -874,7 +874,7 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     # z_force[z_force > 0.2] = 0.2
     # x_force[x_force > 0.05] = 0.05
     #horizon_force[horizon_force > 0.1] = 0.1
-    goal = d_cabinet > 0.2
+    goal = d_cabinet > 0.4
 
     rew_buf =   - 0.6 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) \
                 + grasp * 0.2 \
