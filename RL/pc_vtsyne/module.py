@@ -112,7 +112,7 @@ class ActorCritic(nn.Module):
         return actions_log_prob, entropy, value, actions_mean, self.log_std.repeat(actions_mean.shape[0], 1)
 
 class Student(nn.Module):
-    def __init__(self, obs_shape,  pointclouds_shape, latent_size, actions_shape, num_envs, device, model_cfg):
+    def __init__(self, obs_shape, prop_shape, pointclouds_shape, latent_size, actions_shape, num_envs, device, model_cfg):
         super(Student, self).__init__()
         self.hidden_size = model_cfg['pi_hid_sizes'][-1]
         self.num_gaussians = model_cfg['num_gaussians']
@@ -134,7 +134,7 @@ class Student(nn.Module):
 
         self.pointnet = PointNet(latent_size) 
         self.input_shape = obs_shape
-        self.prio_shape = 21
+        self.prio_shape = prop_shape
 
         # Policy
         actor_layers = []
