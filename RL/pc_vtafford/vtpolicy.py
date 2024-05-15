@@ -106,7 +106,7 @@ class vtpolicy:
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
 
         all_indices = set(torch.arange(pointclouds.size(0)).numpy())
-        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,5),device = self.device)
+        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,4),device = self.device)
         old_case = 0
 
         while True:
@@ -131,7 +131,7 @@ class vtpolicy:
 
                     pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
                     pcs[:,:,3] = 1 
-                    pcs[:,-self.tactile_shape:,4] = 1
+                    #pcs[:,-self.tactile_shape:,4] = 1
          
                     output = self.TAN(pcs[:,:,:4])  
 
@@ -191,7 +191,7 @@ class vtpolicy:
         update_step = 1
         iter = 0
         all_indices = set(torch.arange(pointclouds.size(0)).numpy())
-        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,5),device = self.device)
+        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,4),device = self.device)
         action_labels = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
                
         while True:
@@ -218,7 +218,7 @@ class vtpolicy:
 
                     pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
                     pcs[:,:,3] = 1 
-                    pcs[:,-self.tactile_shape:,4] = 1
+                    #pcs[:,-self.tactile_shape:,4] = 1
                             
                     output = self.TAN(pcs[:,:,:4])  
 
