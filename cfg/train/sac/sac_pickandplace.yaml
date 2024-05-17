@@ -5,7 +5,7 @@ clip_actions: 1.0
 
 env_shape: 10
 proprioception_shape: 21
-load_iter: 7000
+load_iter: 50000
 
 learn:
   test: False
@@ -26,7 +26,7 @@ learn:
   nminibatches: 8 # this is per agent
   replay_size: 2000
   polyak: 0.99
-  learning_rate: 0.001
+  learning_rate: 0.0005
   max_grad_norm: 1
   ent_coef: 0.2
   reward_scale: 1

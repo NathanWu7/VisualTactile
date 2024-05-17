@@ -104,43 +104,23 @@ class vtpolicy:
         self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir,'policy_model_{}.pt'.format(self.policy_iter))))
         self.student_actor.eval()
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
-
-        all_indices = set(torch.arange(pointclouds.size(0)).numpy())
-        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,4),device = self.device)
+        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,6),device = self.device)
         old_case = 0
+        self.sample_shape = self.pointclouds_shape - self.tactile_shape
 
         while True:
             with torch.no_grad():
         
                 pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
-                tactiles = current_pcs[:,self.pointclouds_shape:,0:3]
-                is_zero = torch.all(tactiles == 0, dim=-1)
-                num_zero_points = torch.sum(is_zero, dim=-1)
-                zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
-                
-                touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
-    
-                if len(touch_indices) > 0:
+                pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
 
-                    pointclouds[:,:,3] = 0
-                    tactile_part = pointclouds[:,self.pointclouds_shape:,:]
-                    is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
-                    pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
-
-                    #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
-
-                    pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
-                    pcs[:,:,3] = 1 
-                    #pcs[:,-self.tactile_shape:,4] = 1
-         
-                    output = self.TAN(pcs[:,:,:4])  
-
-                else:
-                    pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
-                    pcs[:,:,3] = 1 
-                    output = self.TAN(pcs[:,:,:4])
-
+                pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
+                pcs[:,-self.tactile_shape:,4] = 1
+                pcs[:,:self.sample_shape,5] = 1
+                pcs[:,:,3] = 1 
+                output = self.TAN(pcs[:,:,:4])
                 pcs[:,:,3] = output.detach()
+
                 mu, sigma, pi = self.student_actor.act(pcs,current_obs[:,:self.prop_shape])  
                 action_pre = self.student_actor.mdn_sample(mu, sigma, pi)
 
@@ -189,10 +169,10 @@ class vtpolicy:
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
 
         update_step = 1
-        iter = 0
-        all_indices = set(torch.arange(pointclouds.size(0)).numpy())
-        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,4),device = self.device)
+        iter = 1
+        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,6),device = self.device)
         action_labels = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
+        self.sample_shape = self.pointclouds_shape - self.tactile_shape
                
         while True:
             beta = iter / (self.dagger_iter - 1)
@@ -200,33 +180,12 @@ class vtpolicy:
                 action_labels = self.actor_critic.act(current_obs)   
             
                 pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
-                tactiles = current_pcs[:,self.pointclouds_shape:,0:3]
-                is_zero = torch.all(tactiles == 0, dim=-1)
-                num_zero_points = torch.sum(is_zero, dim=-1)
-                zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
-                
-                touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
-    
-                if len(touch_indices) > 0:
 
-                    pointclouds[:,:,3] = 0
-                    tactile_part = pointclouds[:,self.pointclouds_shape:,:]
-                    is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
-                    pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
-
-                    #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
-
-                    pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
-                    pcs[:,:,3] = 1 
-                    #pcs[:,-self.tactile_shape:,4] = 1
-                            
-                    output = self.TAN(pcs[:,:,:4])  
-
-                else:
-                    pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
-                    pcs[:,:,3] = 1 
-                    output = self.TAN(pcs[:,:,:4])
-                
+                pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
+                pcs[:,-self.tactile_shape:,4] = 1
+                pcs[:,:self.sample_shape,5] = 1
+                pcs[:,:,3] = 1 
+                output = self.TAN(pcs[:,:,:4])
                 pcs[:,:,3] = output.detach()
                 
                 # print("current_obs: ",current_obs)
@@ -240,7 +199,6 @@ class vtpolicy:
 
                 #loss = self.student_actor.mdn_loss(mu, sigma, pi, action_labels)
                 self.student_actor.add_transitions(pcs,current_obs[:,:self.prop_shape],action_labels)
-             # 0.02s
 
             if self.student_actor.fullfill:
                 data_pcs_batch,data_obs_batch, labels_batch = self.student_actor.batch_sampler()
@@ -280,7 +238,7 @@ class vtpolicy:
                 if update_step >= num_learning_iterations:
                     torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model_{}.pt'.format(update_step)))
                     break
-                iter = iter + 1 if iter < 10 else 0
+                iter = iter + 1 if iter < 10 else 1
 
             if update_step % (log_interval * 10) == 0:
                 torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model_{}.pt'.format(update_step)))

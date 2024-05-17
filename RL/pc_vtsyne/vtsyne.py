@@ -23,6 +23,7 @@ class vtsyne:
                  is_testing = False,
                  device='cpu'
                  ):
+        self.tactile = True
         self.is_testing = is_testing
         self.pc_debug = False
         self.pointCloudVisualizerInitialized = False
@@ -100,36 +101,24 @@ class vtsyne:
         current_obs = self.vec_env.reset()
         current_pcs = self.vec_env.get_pointcloud()
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
-
-        all_indices = set(torch.arange(pointclouds.size(0)).numpy())
-        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,4),device = self.device)
+        self.sample_shape = self.pointclouds_shape - self.tactile_shape
+        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,5),device = self.device)
         old_case = 0
         while True:
             with torch.no_grad():
         
                 pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
-                tactiles = current_pcs[:,self.pointclouds_shape:,0:3]
-                is_zero = torch.all(tactiles == 0, dim=-1)
-                num_zero_points = torch.sum(is_zero, dim=-1)
-                zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
-                
-                touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
     
-                if len(touch_indices) > 0:
-
-                    pointclouds[:,:,3] = 0
-                    tactile_part = pointclouds[:,self.pointclouds_shape:,:]
-                    is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
-                    pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
-
-                    #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
+                if self.tactile:
 
                     pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
-                    pcs[:,-self.tactile_shape:,3] = 1     
-
+                    pcs[:,-self.tactile_shape:,3] = 1
+                    pcs[:,:self.sample_shape,4] = 1
+                            
                 else:
                     pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
                     pcs[:,:,3] = 0
+                    pcs[:,:,4] = 1
 
                 mu, sigma, pi = self.student_actor.act(pcs,current_obs[:,:self.prop_shape])  
                 action_pre = self.student_actor.mdn_sample(mu, sigma, pi)
@@ -179,10 +168,10 @@ class vtsyne:
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
 
         update_step = 1
-        iter = 0
-        all_indices = set(torch.arange(pointclouds.size(0)).numpy())
-        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,4),device = self.device)
+        iter = 1
+        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,5),device = self.device)
         action_labels = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
+        self.sample_shape = self.pointclouds_shape - self.tactile_shape
        
         while True:
             beta = iter / (self.dagger_iter - 1)
@@ -190,29 +179,17 @@ class vtsyne:
                 action_labels = self.actor_critic.act(current_obs)   
             
                 pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
-                tactiles = current_pcs[:,self.pointclouds_shape:,0:3]
-                is_zero = torch.all(tactiles == 0, dim=-1)
-                num_zero_points = torch.sum(is_zero, dim=-1)
-                zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
-                
-                touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
     
-                if len(touch_indices) > 0:
-
-                    pointclouds[:,:,3] = 0
-                    tactile_part = pointclouds[:,self.pointclouds_shape:,:]
-                    is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
-                    pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
-
-                    #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
+                if self.tactile:
 
                     pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
                     pcs[:,-self.tactile_shape:,3] = 1
+                    pcs[:,:self.sample_shape,4] = 1
                             
-
                 else:
                     pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
                     pcs[:,:,3] = 0
+                    pcs[:,:,4] = 1
 
 
                 mu, sigma, pi = self.student_actor.act(pcs,current_obs[:,:self.prop_shape])    #[:,:self.prop_shape]
@@ -243,11 +220,6 @@ class vtsyne:
 
             if self.pc_debug:
                 test = pcs[1, :, :3].cpu().numpy()
-                # #print(test.shape)
-                # color = output[1].unsqueeze(1).detach().cpu().numpy()
-                # color = (color - min(color)) / (max(color)-min(color))
-                # colors_blue = o3d.utility.Vector3dVector( color * [[1,0,0]])
-                #print(color * [[0,0,1]])
                 self.pcd.points = o3d.utility.Vector3dVector(list(test))
                 #self.pcd.colors = o3d.utility.Vector3dVector(list(colors_blue))
 
@@ -261,7 +233,7 @@ class vtsyne:
                 print("Task name: ",self.task_name, "Algo: VTS")
                 print("Save at:", update_step, " Iter:",iter, "  Loss: ", loss.item())
                 print()
-                iter = iter + 1 if iter < 10 else 0
+                iter = iter + 1 if iter < 10 else 1
                 if update_step >= num_learning_iterations:
                     torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'vts_policy_model_{}.pt'.format(update_step)))
                     break

@@ -154,7 +154,7 @@ class Student(nn.Module):
         self.init_weights(self.actor, actor_weights)
 
         self.current_obs = torch.zeros(self.replay_size, num_envs, self.prio_shape, device=device)
-        self.pcs = torch.zeros(self.replay_size, num_envs, self.pc_shape, 4, device=device)
+        self.pcs = torch.zeros(self.replay_size, num_envs, self.pc_shape, 5, device=device)
         self.labels = torch.zeros(self.replay_size, num_envs, self.actions_space, device=device)
         self.z_pi = nn.Sequential(
             nn.Linear(self.hidden_size, self.num_gaussians),
@@ -211,7 +211,7 @@ class Student(nn.Module):
 
     def batch_sampler(self):
         random_indices = torch.randint(low = 1, high = self.total_size -1, size=(self.batch_size,)).to(self.device)
-        data_pcs = self.pcs.reshape(-1,self.pc_shape,4)
+        data_pcs = self.pcs.reshape(-1,self.pc_shape,5)
         data_obs = self.current_obs.reshape(-1,self.prio_shape)
         labels = self.labels.reshape(-1,self.actions_space)
         return data_pcs[random_indices], data_obs[random_indices], labels[random_indices]
@@ -222,7 +222,7 @@ class Student(nn.Module):
 class PointNet(nn.Module):
     def __init__(self, latent_size):
         super(PointNet,self).__init__()
-        self.conv1 = nn.Conv1d(4, 64, 1) # (envs,n,64)
+        self.conv1 = nn.Conv1d(5, 64, 1) # (envs,n,64)
         self.conv2 = nn.Conv1d(64, 128, 1) # (envs,n,128)
         self.conv3 = nn.Conv1d(128, 256, 1) # (envs,n,256)
         self.bn1 = nn.BatchNorm1d(64)
@@ -272,12 +272,12 @@ if __name__ == '__main__':
     device = "cuda:0"
     latent_size = 8
     actor = Student(obs_shape=31, latent_size=8, actions_shape=7, num_envs=4, device=device, model_cfg=None)
-    predictions = torch.ones(4,7).uniform_(0,1).to(device) 
-    labels = torch.ones(4,7).uniform_(0,1).to(device) 
+    predictions = torch.ones(5,7).uniform_(0,1).to(device) 
+    labels = torch.ones(5,7).uniform_(0,1).to(device) 
     for i in range(3000):
         actor.add_transitions(predictions,labels)
-        predictions = torch.ones(4,7).uniform_(0,1).to(device) 
-        labels = torch.ones(4,7).uniform_(0,1).to(device) 
+        predictions = torch.ones(5,7).uniform_(0,1).to(device) 
+        labels = torch.ones(5,7).uniform_(0,1).to(device) 
         if actor.fullfill:
             data_batch,labels_batch = actor.batch_sampler()
             #print(labels_batch.shape)

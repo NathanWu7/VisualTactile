@@ -1,9 +1,9 @@
 env:
   taskname: 'lift'
-  numEnvs: 512
+  numEnvs: 16
   numStates: 28 #
   numObservations: 28
-  episodeLength: 600
+  episodeLength: 200
 
   sim_device: "cuda:0"
   compute_device_id: 0
@@ -24,9 +24,9 @@ env:
 
 
   actionScale: 1.0
-  PCDownSampleNum: 8192
+  PCDownSampleNum: 4096
   TDownSampleNum: 64
-  obs_type: ["oracle"]           #["oracle","pointcloud","tactile"]  
+  obs_type: ["oracle","pointcloud","tactile"]             #["oracle","pointcloud","tactile"]  
   aggregateMode: 1
   seed: 42
 

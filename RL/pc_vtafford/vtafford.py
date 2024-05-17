@@ -33,7 +33,6 @@ class vtafford:
         self.state_space = vec_env.state_space
         self.device = device
         self.cfg_train = cfg_train
-        self.num_transitions_per_env = 4
 
         self.pointclouds_shape = self.cfg_train["PCDownSampleNum"]
         self.tactile_shape = self.cfg_train["TDownSampleNum"] * 2
@@ -54,7 +53,7 @@ class vtafford:
         self.model_cfg = self.cfg_train["policy"]
         ac_kwargs = dict(hidden_sizes=[self.model_cfg["hidden_nodes"]]* self.model_cfg["hidden_layer"])
 
-        self.learning_rate = 0.0001
+        self.learning_rate = self.cfg_train["lr"]
 
         self.log_dir = log_dir
         self.writer = SummaryWriter(log_dir=self.model_dir, flush_secs=10)
@@ -93,40 +92,21 @@ class vtafford:
         current_pcs = self.vec_env.get_pointcloud()
         actions = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
-
-        all_indices = set(torch.arange(pointclouds.size(0)).numpy())
+        pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,4),device = self.device)
         while True:
             with torch.no_grad():
 
                 actions = self.actor_critic.act(current_obs)   
-                pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
-                tactiles = current_pcs[:,self.pointclouds_shape:,0:3]
-                is_zero = torch.all(tactiles == 0, dim=-1)
-                num_zero_points = torch.sum(is_zero, dim=-1)
-                zero_indices = torch.nonzero(num_zero_points == 128)[:, 0]
-                touch_indices = torch.tensor(list( all_indices - set(zero_indices.cpu().numpy())))
+
 
                 next_obs, rews, dones, successes, infos = self.vec_env.step(actions)
                 next_pointcloud = self.vec_env.get_pointcloud()  
 
                 
-                if len(touch_indices) > 0:
-                    pointclouds[:,:,3] = 0
-                    tactile_part = pointclouds[:,self.pointclouds_shape:,:]
-                    is_nonzero = (tactile_part[:,:,:3]!=0).any(dim=2)
-                    pointclouds[:,self.pointclouds_shape:,3][is_nonzero] = 1
-                    #print(pointclouds.shape)
-                    #shuffled = pointclouds[:, torch.randperm(pointclouds.size(1)), :]
-                    pcs = pointclouds[:, -self.pointclouds_shape:, :]
-                    labels = pcs[:,:,3].clone()
-                    pcs[:,:,3] = 1 #relabel
-            
-                    output = self.TAN(pcs)  
-
-                else:
-                    pcs = pointclouds[:, :self.pointclouds_shape, :]
-                    pcs[:,:,3] = 1 
-                    output = self.TAN(pcs)
+                pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
+                pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
+                pcs[:,:,3] = 1 
+                output = self.TAN(pcs[:,:,:4])
                 pcs[:,:,3] = output.detach()
 
                 if self.pc_debug:
@@ -235,6 +215,8 @@ class vtafford:
                 print()
                 if update_step >= num_learning_iterations:
                     break
+            if update_step % 10000 == 0 and update_step != 0 :
+                torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model_{}.pt'.format(update_step)))
 
             current_obs = next_obs
             current_pcs = next_pointcloud

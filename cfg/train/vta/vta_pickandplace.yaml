@@ -5,11 +5,13 @@ origin_shape: 31 #env origin
 proprioception_shape: 21  #proprio 
 encoded_observation_shape: 37 # encoded = proprio + latent
 latent_shape: 16
-PCDownSampleNum: 8192
+PCDownSampleNum: 4096
 TDownSampleNum: 64
 
 rl_algo: "sac"
-rl_iter: 10000
+rl_iter: 50000
+
+lr: 0.0001
 
 policy: # only works for MlpPolicy right now
   # training params
@@ -19,4 +21,4 @@ policy: # only works for MlpPolicy right now
 
 learn:
   save_interval: 200 # check for potential saves every this many iterations
-  max_iterations: 5000
+  max_iterations: 20000

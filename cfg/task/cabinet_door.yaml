@@ -1,9 +1,9 @@
 env:
   taskname: "cabinetdoor"
-  numEnvs: 512
+  numEnvs: 16
   numStates: 27 #
   numObservations: 27
-  episodeLength: 600
+  episodeLength: 200
   
   sim_device: "cuda:0"
   compute_device_id: 0
@@ -22,11 +22,11 @@ env:
   arm_default_dof_pos: [-1.57, 0, -1.57, -1.57, 0, 0]
   control_step_limits: [0.01, 0.01, 0.01, 0.05, 0.05, 0.05, 0.02]
 
-  PCDownSampleNum: 8192
+  PCDownSampleNum: 4096
   TDownSampleNum: 64
 
   actionScale: 1.0
-  obs_type: ["oracle"]    #["oracle","pointcloud","tactile"]  
+  obs_type: ["oracle","pointcloud","tactile"]      #["oracle","pointcloud","tactile"]  
   aggregateMode: 1
   seed: 42
 
@@ -34,7 +34,7 @@ env:
   dof_config: "XYZRz"
   controlFrequencyInv: 1
 
-  debug: True # if debug, num_envs will be set to numDebugEnvs
+  debug: False # if debug, num_envs will be set to numDebugEnvs
   numDebugEnvs: 2
   Pointcloud_Visualize: False
   Camera_Visualize: False

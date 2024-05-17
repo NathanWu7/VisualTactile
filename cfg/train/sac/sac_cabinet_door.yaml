@@ -5,7 +5,7 @@ clip_actions: 1.0
 
 env_shape: 4
 proprioception_shape: 23
-load_iter: 4000
+load_iter: 10000
 
 learn:
   test: False
@@ -14,7 +14,7 @@ learn:
   print_log: True
 
   # rollout params
-  max_iterations: 10000
+  max_iterations: 20000
 
   # training params
   hidden_nodes: 512
