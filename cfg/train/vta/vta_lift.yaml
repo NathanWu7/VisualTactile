@@ -5,7 +5,7 @@ origin_shape: 28 #env origin
 proprioception_shape: 21  #proprio 
 encoded_observation_shape: 37 # encoded = proprio + latent
 latent_shape: 16
-PCDownSampleNum: 4096
+PCDownSampleNum: 1024
 TDownSampleNum: 64
 
 rl_algo: "sac"

@@ -47,8 +47,8 @@ class Lift(BaseTask):
         self.cfg = cfg
         self.sim_params = sim_params
         self.physics_engine = physics_engine
-        self.device_type = device_type
-        self.device_id = device_id
+        self.device_type = cfg["env"]["device_type"]
+        self.device_id = cfg["env"]["device_id"]
         self.debug = cfg["env"]["debug"]
         self.debug_view_type = self.cfg["env"]["debug_camera_type"]
         self.dof_config = cfg["env"]["dof_config"]

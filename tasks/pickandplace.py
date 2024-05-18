@@ -873,18 +873,18 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     cubeA_height[cubeA_height>0.2] = 0.2 
     cubeA_lifted = cubeA_height > 0.01
     cubeA_picked = cubeA_height >= 0.2
-    cubeA_reached = d_g < 0.02
+    cubeA_reached = d_g < 0.03
     #cubeA_unreached = cubeA_height < 0.1
-    #cubeA_droped = cubeA_height < -0.01
+    cubeA_droped = cubeA_height < -0.01
     success_buf = cubeA_reached
     force[force > 1] = 1
 
-    rew_buf = - 1.0 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) + cubeA_lifted * cubeA_height * 5\
-                + cubeA_picked * (1-torch.tanh(d_g * 2)) * 2 \
+    rew_buf = - 2.0 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) + cubeA_lifted * cubeA_height * 5\
+                + cubeA_picked * (1-torch.tanh(d_g * 2)) \
                 + force * 0.1 \
                 + cubeA_reached * 300
     
-    reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (cubeA_reached), torch.ones_like(reset_buf), reset_buf)
+    reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (cubeA_reached) | (cubeA_droped), torch.ones_like(reset_buf), reset_buf)
     return rew_buf, reset_buf, success_buf
 
 @torch.jit.script

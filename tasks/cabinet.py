@@ -110,6 +110,7 @@ class Cabinet(BaseTask):
         self._eef_lf_state = None  # end effector state (at left fingertip)
         self._eef_rf_state = None  # end effector state (at left fingertip)
         self._j_eef = None  # Jacobian for end effector
+        self.cabinet_actor = None
         self._global_indices = None         # Unique indices corresponding to all envs in flattened array
         self._q = None  # Joint positions           (n_envs, n_dof)
         self.start_position_noise = 0.15
@@ -335,7 +336,7 @@ class Cabinet(BaseTask):
 
             table_actor = self.gym.create_actor(env_ptr, table_asset, table_pose, "table", i, 0, 0)
             table_con_actor = self.gym.create_actor(env_ptr, table_con_asset, table_con_pose, "table_con", i, 1, 0)
-            cabinet_actor = self.gym.create_actor(env_ptr, cabinet_asset, cabinet_start_pose, "cabinet", i, 2, 0)
+            self.cabinet_actor = self.gym.create_actor(env_ptr, cabinet_asset, cabinet_start_pose, "cabinet", i, 2, 0)
 
 
             #camera
@@ -425,7 +426,9 @@ class Cabinet(BaseTask):
 
         # Setup tensor buffers
         _actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)  #including objs
-        self.init_cabinet_pos = torch.tensor([1.10, 0.3, 0.83+0.4],device = self.device)
+        self.init_cabinet_pos = torch.zeros((self.num_envs, 3), device=self.device)
+        self.init_cabinet_pos[:,0:3] = torch.tensor([1.10, 0.3, 0.83+0.4],device = self.device)
+
 
         _dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)      #only dof
         _rigid_body_state_tensor = self.gym.acquire_rigid_body_state_tensor(self.sim)  #arm_hand
@@ -544,7 +547,7 @@ class Cabinet(BaseTask):
 
         # reset cabinet
         self.cabinet_dof_state[env_ids, :] = torch.zeros_like(self.cabinet_dof_state[env_ids])  #dof_state
-
+        sampled_cabinet_state = self.init_cabinet_pos
         # self.gym.set_dof_position_target_tensor_indexed(self.sim,
         #                                                 gymtorch.unwrap_tensor(self._pos_control),
         #                                                 gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
@@ -554,7 +557,7 @@ class Cabinet(BaseTask):
                                                gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
  
         # # # #self.goal_pos = sampled_goal_state
-
+        # self._root_state[env_ids, self.cabinet_actor, 0:3] = sampled_cabinet_state[env_ids,:]  #TODO:debug
 
         # self.gym.set_actor_root_state_tensor_indexed(
         #     self.sim, gymtorch.unwrap_tensor(self._root_state),
@@ -711,7 +714,7 @@ class Cabinet(BaseTask):
 
         is_zero = torch.all(sensors_point_clouds == 0, dim=-1)
         num_zero_points = torch.sum(is_zero, dim=-1)
-        self.touch_rate[:,0] = (1 - num_zero_points.float() / (self.sensor_downsample_num.float * 2))
+        #self.touch_rate[:,0] = (1 - num_zero_points.float() / (self.sensor_downsample_num.float * 2))
         
 
         #self.sensor_pointcloud_flatten = sensors_point_clouds.view(self.num_envs, 2 * self.sensor_downsample_num * 3)
@@ -854,10 +857,10 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     goal = d_cabinet > 0.1
     close = d_cabinet < 0.01
      
-    rew_buf = - 0.2 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) * ungrasp \
+    rew_buf = - 0.5 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) \
                 + force * 0.1 \
                 + d_cabinet\
-                + goal * 100
+                + goal * 200
 
     #reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | (rewards > 0.8), torch.ones_like(reset_buf), reset_buf)
     reset_buf = torch.where((progress_buf >= (max_episode_length - 1)) | goal, torch.ones_like(reset_buf), reset_buf)

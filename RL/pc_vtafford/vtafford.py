@@ -215,8 +215,6 @@ class vtafford:
                 print()
                 if update_step >= num_learning_iterations:
                     break
-            if update_step % 10000 == 0 and update_step != 0 :
-                torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model_{}.pt'.format(update_step)))
 
             current_obs = next_obs
             current_pcs = next_pointcloud

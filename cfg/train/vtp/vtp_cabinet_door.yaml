@@ -10,7 +10,10 @@ TDownSampleNum: 64
 
 rl_algo: "sac"
 rl_iter: 10000
-policy_iter: 50000
+policy_iter: 40000
+
+with_tactile: True
+with_Affordance: True
 
 policy: # only works for MlpPolicy right now
   hidden_nodes: 512

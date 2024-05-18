@@ -5,6 +5,8 @@ env:
   numObservations: 25
   episodeLength: 200
 
+  device_id: 0
+  device_type: "cuda"
   sim_device: "cuda:0"
   compute_device_id: 0
   graphics_device_id: 0

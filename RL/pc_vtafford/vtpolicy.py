@@ -35,6 +35,9 @@ class vtpolicy:
         self.device = device
         self.cfg_train = cfg_train
 
+        self.wo_tactile = self.cfg_train["with_tactile"]
+        self.wo_VTA = self.cfg_train["with_Affordance"]
+
         self.pointclouds_shape = self.cfg_train["PCDownSampleNum"]
         self.tactile_shape = self.cfg_train["TDownSampleNum"] * 2
         self.cfg_train = copy.deepcopy(cfg_train)
@@ -44,6 +47,7 @@ class vtpolicy:
         self.policy_iter = self.cfg_train["policy_iter"]
 
         self.latent_shape = self.cfg_train["latent_shape"]
+        
         self.prop_shape = self.cfg_train["proprioception_shape"]
  
         self.input_shape = self.latent_shape + self.prop_shape 
@@ -86,6 +90,12 @@ class vtpolicy:
         self.criterion = nn.MSELoss()
         
         #debug
+        self.policy_type = "VP"
+        if self.wo_tactile == True:
+            self.policy_type += "T"
+        if self.wo_VTA == True:
+            self.policy_type += "A"
+        
         if self.pc_debug:
 
             from utils.o3dviewer import PointcloudVisualizer
@@ -100,8 +110,8 @@ class vtpolicy:
         success_cases = torch.zeros(( self.vec_env.num_envs),device = self.device)
         print()
         print("#####################")
-        print("Eval model: ", os.path.join(self.model_dir,'policy_model_{}.pt'.format(self.policy_iter)))
-        self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir,'policy_model_{}.pt'.format(self.policy_iter))))
+        print("Eval model: ", os.path.join(self.model_dir, self.policy_type+'_model_{}.pt'.format(self.policy_iter)))
+        self.student_actor.load_state_dict(torch.load(os.path.join(self.model_dir, self.policy_type+'_model_{}.pt'.format(self.policy_iter))))
         self.student_actor.eval()
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
         pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,6),device = self.device)
@@ -112,14 +122,25 @@ class vtpolicy:
             with torch.no_grad():
         
                 pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
-                pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
+                
+                if self.wo_tactile:
+                    pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
+                    pcs[:,-self.tactile_shape:,4] = 1
+                    pcs[:,:self.sample_shape,5] = 1
+                else:
+                    pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
+                    pcs[:,:,4] = 0
+                    pcs[:,:,5] = 1
+                
+                 
+                pcs[:,:,3] = 1
 
-                pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
-                pcs[:,-self.tactile_shape:,4] = 1
-                pcs[:,:self.sample_shape,5] = 1
-                pcs[:,:,3] = 1 
-                output = self.TAN(pcs[:,:,:4])
-                pcs[:,:,3] = output.detach()
+                if self.wo_VTA == True:
+                    
+                    output = self.TAN(pcs[:,:,:4])
+                    pcs[:,:,3] = output.detach()
+                else:
+                    pass
 
                 mu, sigma, pi = self.student_actor.act(pcs,current_obs[:,:self.prop_shape])  
                 action_pre = self.student_actor.mdn_sample(mu, sigma, pi)
@@ -132,7 +153,7 @@ class vtpolicy:
                     cases = int(sum(all_cases).item())
                     succes_rate = round((sum(success_cases) / sum(all_cases)).item(),4)
                     if cases != old_case:
-                        print("Task name: ",self.task_name, "Algo: VTP")
+                        print("Task name: ",self.task_name, "Algo: {}".format(self.policy_type))
                         print("success_rate: ", succes_rate,"  in {} cases.".format(cases))
                         print()
                     if cases >= eval_step:
@@ -169,7 +190,7 @@ class vtpolicy:
         pointclouds = torch.zeros((self.vec_env.num_envs, (self.pointclouds_shape + self.tactile_shape), 4), device = self.device)
 
         update_step = 1
-        iter = 1
+        iter = 6
         pcs = torch.zeros((self.vec_env.num_envs,self.pointclouds_shape,6),device = self.device)
         action_labels = torch.zeros((self.vec_env.num_envs, 7), device = self.device)
         self.sample_shape = self.pointclouds_shape - self.tactile_shape
@@ -181,12 +202,31 @@ class vtpolicy:
             
                 pointclouds[:,:,0:3] = current_pcs[:,:,0:3]
 
-                pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
-                pcs[:,-self.tactile_shape:,4] = 1
-                pcs[:,:self.sample_shape,5] = 1
-                pcs[:,:,3] = 1 
-                output = self.TAN(pcs[:,:,:4])
-                pcs[:,:,3] = output.detach()
+                # pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
+                # pcs[:,-self.tactile_shape:,4] = 1
+                # pcs[:,:self.sample_shape,5] = 1
+
+                # pcs[:,:,3] = 1 
+                # output = self.TAN(pcs[:,:,:4])
+                # pcs[:,:,3] = output.detach()
+                if self.wo_tactile == True:
+                    pcs[:,:,0:3] = pointclouds[:, -self.pointclouds_shape:, 0:3]
+                    pcs[:,-self.tactile_shape:,4] = 1
+                    pcs[:,:self.sample_shape,5] = 1
+                else:
+                    pcs[:,:,0:3] = pointclouds[:, :self.pointclouds_shape, 0:3]
+                    pcs[:,:,4] = 0
+                    pcs[:,:,5] = 1
+                
+                 
+                pcs[:,:,3] = 1
+
+                if self.wo_VTA == True:
+                    
+                    output = self.TAN(pcs[:,:,:4])
+                    pcs[:,:,3] = output.detach()
+                else:
+                    pass
                 
                 # print("current_obs: ",current_obs)
 
@@ -232,16 +272,16 @@ class vtpolicy:
                     self.pointCloudVisualizer.update(self.pcd)  
 
             if update_step % log_interval == 0:
-                print("Task name: ",self.task_name, "Algo: VTP")
+                print("Task name: ",self.task_name, "Algo: {}".format(self.policy_type))
                 print("Save at:", update_step, " Iter:",iter, "  Loss: ", loss.item())
                 print()
                 if update_step >= num_learning_iterations:
-                    torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model_{}.pt'.format(update_step)))
+                    torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir, self.policy_type+ '_model_{}.pt'.format(update_step)))
                     break
-                iter = iter + 1 if iter < 10 else 1
+                iter = iter + 1 if iter < 10 else 6
 
             if update_step % (log_interval * 10) == 0:
-                torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir,'policy_model_{}.pt'.format(update_step)))
+                torch.save(self.student_actor.state_dict(), os.path.join(self.model_dir, self.policy_type+'_model_{}.pt'.format(update_step)))
 
 
             current_obs = next_obs

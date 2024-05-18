@@ -339,7 +339,7 @@ class Cabinet_door(BaseTask):
 
             table_actor = self.gym.create_actor(env_ptr, table_asset, table_pose, "table", i, 0, 0)
             table_con_actor = self.gym.create_actor(env_ptr, table_con_asset, table_con_pose, "table_con", i, 1, 0)
-            cabinet_actor = self.gym.create_actor(env_ptr, cabinet_asset, cabinet_start_pose, "cabinet", i, 2, 0)
+            self.cabinet_actor = self.gym.create_actor(env_ptr, cabinet_asset, cabinet_start_pose, "cabinet", i, 2, 0)
 
 
             #camera
@@ -429,7 +429,8 @@ class Cabinet_door(BaseTask):
 
         # Setup tensor buffers
         _actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)  #including objs
-        self.init_cabinet_pos = torch.tensor([1.10, 0.3, 0.83+0.4],device = self.device)
+        self.init_cabinet_pos = torch.zeros((self.num_envs, 3), device=self.device)
+        self.init_cabinet_pos[:,0:3] = torch.tensor([1.10, 0.3, 0.83+0.4],device = self.device)
 
         _dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)      #only dof
         _rigid_body_state_tensor = self.gym.acquire_rigid_body_state_tensor(self.sim)  
@@ -552,7 +553,7 @@ class Cabinet_door(BaseTask):
 
         # reset cabinet
         self.cabinet_dof_state[env_ids, :] = torch.zeros_like(self.cabinet_dof_state[env_ids])  #dof_state
-
+        sampled_cabinet_state = self.init_cabinet_pos
         # self.gym.set_dof_position_target_tensor_indexed(self.sim,
         #                                                 gymtorch.unwrap_tensor(self._pos_control),
         #                                                 gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
@@ -560,13 +561,14 @@ class Cabinet_door(BaseTask):
         self.gym.set_dof_state_tensor_indexed(self.sim,
                                                gymtorch.unwrap_tensor(self._dof_state),
                                                gymtorch.unwrap_tensor(multi_env_ids_int32), len(multi_env_ids_int32))
- 
-        # # # #self.goal_pos = sampled_goal_state
-
-
+        #print(sampled_cabinet_state[env_ids,0:3])
+        #print(multi_cabinet_ids_int32)
+        #self._root_state[env_ids, self.cabinet_actor, 0:3] = sampled_cabinet_state[env_ids,0:3]  #TODO:random
+        #print(self._root_state[env_ids, self.cabinet_actor, 0:3])
         # self.gym.set_actor_root_state_tensor_indexed(
         #     self.sim, gymtorch.unwrap_tensor(self._root_state),
         #     gymtorch.unwrap_tensor(multi_cabinet_ids_int32), len(multi_cabinet_ids_int32))
+
 
         #print(self.goal_pos)
         # clear up desired buffer states
@@ -874,12 +876,12 @@ def compute_reach_reward(reset_buf, progress_buf, states, max_episode_length):
     # z_force[z_force > 0.2] = 0.2
     # x_force[x_force > 0.05] = 0.05
     #horizon_force[horizon_force > 0.1] = 0.1
-    goal = d_cabinet > 0.4
+    goal = d_cabinet > 0.2
 
-    rew_buf =   - 0.6 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) \
+    rew_buf =   - 1 - torch.tanh(5.0 * ( d_lf + d_rf - d_ff / 2)) \
                 + grasp * 0.2 \
                 + open * 0.1 \
-                + open * torch.tanh(5.0 * d_cabinet) * 0.5
+                + open * torch.tanh(5.0 * d_cabinet)
 
 
 

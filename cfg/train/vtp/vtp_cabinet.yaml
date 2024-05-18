@@ -10,7 +10,10 @@ TDownSampleNum: 64
 
 rl_algo: "sac"
 rl_iter: 50000
-policy_iter: 50000
+policy_iter: 5000
+
+with_tactile: True
+with_Affordance: True
 
 policy: # only works for MlpPolicy right now
   hidden_nodes: 512
@@ -27,4 +30,4 @@ student: # only works for MlpPolicy right now
 learn:
   lr: 0.0001
   save_interval: 500 # check for potential saves every this many iterations
-  max_iterations: 50000 
+  max_iterations: 20000 

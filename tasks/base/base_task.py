@@ -25,8 +25,8 @@ class BaseTask():
     def __init__(self, cfg, enable_camera_sensors=True, is_meta=False, task_num=0):
         self.gym = gymapi.acquire_gym()
 
-        self.device_type = cfg.get("device_type", "cuda")
-        self.device_id = cfg.get("device_id", 0)
+        self.device_type = cfg["env"]["device_type"]
+        self.device_id = cfg["env"]["device_id"]
 
         self.device = "cpu"
         if self.device_type == "cuda" or self.device_type == "GPU":

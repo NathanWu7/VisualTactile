@@ -5,6 +5,8 @@ env:
   numObservations: 28
   episodeLength: 200
 
+  device_id: 0
+  device_type: "cuda"
   sim_device: "cuda:0"
   compute_device_id: 0
   graphics_device_id: 0
@@ -24,7 +26,7 @@ env:
 
 
   actionScale: 1.0
-  PCDownSampleNum: 4096
+  PCDownSampleNum: 1024
   TDownSampleNum: 64
   obs_type: ["oracle","pointcloud","tactile"]             #["oracle","pointcloud","tactile"]  
   aggregateMode: 1
