@@ -32,23 +32,6 @@ pip install -r requirements.txt
 ### Assets
 Google Drive Link: https://drive.google.com/file/d/16qATmRousv1vgVg3yQnahmRkPLoQ8lzG/view?usp=drive_link
 
-## Task test
-### Lift object
-```sh
-python3 train.py --task pickup --test
-```
-### Pick and Place
-```sh
-python3 train.py --task pickandplace --test
-```
-### Cabinet draw
-```sh
-python3 train.py --task cabinet --test
-```
-### Open cabinet door
-```sh
-python3 train.py --task cabinet_door --test
-```
 ## Training
 
 Tensorboard logdir :/run
