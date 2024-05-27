@@ -79,27 +79,3 @@ For testing:
 ```sh
 python3 train.py --task xxxx --algo vtp --test --headless
 ```
-
-## Comparision
-### 1. VTS
-For algo modify this file:   cfg/train/vts/vts_xxx.yaml   <br>
-Parameters are the same as vtp <br>
-After training RL in step 1 <br>
-```sh
-python3 train.py --task xxxx --algo vts --headless
-```
-For testing
-```sh
-python3 train.py --task xxxx --algo vts --headless --test
-```
-
-### 2. RLA
-For algo modify this file:   cfg/train/rla/rla_xxx.yaml   <br>
-numEnvs : 4+  <br>
-End to end training <br>
-```sh
-python3 train.py --task xxxx --algo rla --headless
-```
-For testing
-```sh
-python3 train.py --task xxxx --algo rla --headless --test
