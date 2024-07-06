@@ -6,14 +6,9 @@ from tasks.cabinet_door import Cabinet_door
 #from tasks.franka_cube_stack import FrankaCubeStack
 from tasks.base.vec_task import VecTaskCPU, VecTaskGPU, VecTaskPython, VecTaskPythonArm
 from RL.ppo.ppo import PPO
-#from RL.ppo_pc.ppopc import PPOPC
 from RL.sac.sac import SAC
 from RL.td3.td3 import TD3
-from RL.test.test import TEST
-
-from RL.pc_rlafford.rlafford import rlafford
-from RL.pc_vtafford.vtafford import vtafford
-from RL.pc_vtafford.vtpolicy import vtpolicy
+#from RL.custom.custom import custom
 
 def parse_task(args, env_cfg, train_cfg, sim_params):
     device_id = args.device_id
@@ -41,29 +36,6 @@ def parse_task(args, env_cfg, train_cfg, sim_params):
                     print_log=args.printlog,
                     apply_reset=False,
                     asymmetric=False)
-        
-    elif args.algo == 'rla':
-        task = rlafford( vec_env,
-                    train_cfg,
-                    device=rl_device,
-                    sampler='sequential',
-                    log_dir='run',
-                    is_testing=args.test,
-                    print_log=args.printlog,
-                    apply_reset=False)
-        
-    elif args.algo == 'vta':
-        task = vtafford(vec_env,
-                         train_cfg,
-                         log_dir='run',
-                         is_testing = args.test,
-                         device=rl_device)
-    elif args.algo == 'vtp':
-        task = vtpolicy(vec_env,
-                         train_cfg,
-                         log_dir='run',
-                         is_testing = args.test,
-                         device=rl_device)
         
     elif args.algo == 'sac':
         task = SAC(vec_env,
@@ -100,8 +72,8 @@ def parse_task(args, env_cfg, train_cfg, sim_params):
                  print_log=True,
                  apply_reset=False,
                  asymmetric=False)
-    elif args.algo == 'test':
-        task = TEST(vec_env, 
-                    device=rl_device)
+    # elif args.algo == 'test':
+    #     task = TEST(vec_env, 
+    #                 device=rl_device)
 
     return task

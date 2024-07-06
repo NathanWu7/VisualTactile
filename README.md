@@ -1,4 +1,28 @@
-## Dependencies
+[![IsaacGym](https://img.shields.io/badge/IsaacGym-silver.svg)](https://developer.nvidia.com/isaac-gym)
+[![Python](https://img.shields.io/badge/python-3.8-blue.svg)](https://docs.python.org/3/whatsnew/3.8.html)
+[![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/20.04/)
+[![License](https://img.shields.io/badge/license-MIT-yellow.svg)](https://opensource.org/license/mit)
+
+##  1. VisualTactileGym
+
+
+### Tactile simulation
+This project provides tactile simulation on the isaacgym platform and is managed uniformly through point clouds and six dimensional forces, which can be used as input together with camera point clouds.
+<p align="center">
+  <img width="266" src="docs/tactile_sim.png">
+  <img width="256" src="docs/pc_img.png">
+</p>
+
+### Custom ( Robot Arm / Gripper / Tactile Sensor )
+At the same time, this simulation supports different robot systems
+<p align="center">
+  <img width="232" src="docs/adaptive_gripper.png">
+  <img width="268" src="docs/parallel_gripper.png">
+</p>
+
+<br>
+
+## 2. Dependencies
 Some dependencies can be installed by
 
 ```sh
@@ -16,8 +40,7 @@ Install pointnet++ manually.
 cd {the dir for packages}
 git clone --recursive https://github.com/erikwijmans/Pointnet2_PyTorch
 cd Pointnet2_PyTorch
-# [IMPORTANT] comment these two lines of code:
-#   https://github.com/erikwijmans/Pointnet2_PyTorch/blob/master/pointnet2_ops_lib/pointnet2_ops/_ext-src/src/sampling_gpu.cu#L100-L101
+
 pip install -r requirements.txt
 pip install -e .
 ```
@@ -29,14 +52,17 @@ Finally, run the following to install other packages.
 pip install -r requirements.txt
 ```
 
-### Assets
+### Assets（Optional）
 Google Drive Link: https://drive.google.com/file/d/16qATmRousv1vgVg3yQnahmRkPLoQ8lzG/view?usp=drive_link
 
-## Training
+
+<br>
+
+## 3. Training
 
 Tensorboard logdir :/run
 
-### 1. RL 
+### 1. RL (without tactile and visual pointcloud)
 For env  modify this file :   cfg/task/xxxx.yaml  <br>
   numEnvs : 512+        <br>                                   
   obs_type: ["oracle"] <br>
@@ -51,31 +77,17 @@ For testing:
 python3 train.py --task xxxx --algo sac --headless --test
 ```
 
-### 2. VTA
-For env modify this file :  cfg/task/xxxx.yaml  <br>
-  numEnvs : 16+  <br>
-  obs_type: ["oracle","pointcloud","tactile"]  <br>
-  
-For algo modify this file:   cfg/train/vta/vta_xxx.yaml  <br>   
-  rl_algo: "sac"     --> Choose algorithm <br>
-  rl_iter: 10000     -->  When RL model saved (iter)  <br>
-  max_iterations: 10000  <br>
-  
-```sh
-python3 train.py --task xxxx --algo vta --headless
-```
-VTA test cannot run under headless model
+### 2. RL or Custom Algo (With tactile or visual pointcloud) 
+For env  modify this file :   cfg/task/xxxx.yaml  <br>
+  numEnvs : 16+                                  
+  obs_type: ["oracle","tactile","pointcloud"] <br>
 
-### 3. VTP
-For algo modify this file:   cfg/train/vtp/vtp_xxx.yaml    
-  sample_batch_size: 32 + (sample from replay_size * numEnvs)<br>
-  replay_size: 300 + (total data: replay_size * numEnvs, each step update -> numEnvs)<br>
-  lr: 0.001   -->  learning rate   <br>
-Other config files are the same as VTA  <br>
+Other config files are the same as RL  <br>
 ```sh
-python3 train.py --task xxxx --algo vtp --headless
+python3 train.py --task xxxx --algo custom --headless
 ```
 For testing:
 ```sh
-python3 train.py --task xxxx --algo vtp --test --headless
+python3 train.py --task xxxx --algo custom --test --headless
 ```
+
