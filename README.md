@@ -92,5 +92,5 @@ python3 train.py --task xxxx --algo custom --test --headless
 ```
 
 ## Reference
-https://github.com/PKU-MARL/DexterousHands
+https://github.com/PKU-MARL/DexterousHands <br>
 https://github.com/hyperplane-lab/RLAfford
